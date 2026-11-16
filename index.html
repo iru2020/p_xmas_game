@@ -188,7 +188,7 @@ html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;backgrou
   <div class="eb">QUESTION BANK</div><h1>題庫</h1>
   <p class="tip">這裡可以看到所有題目與題型，也可以預覽玩一次（預覽不計分，不影響比賽進度）。編輯與新增功能之後加入。</p>
   <div class="tb"><button class="go" id="bkAdd">＋ 新增題目</button><button class="ghost" id="bkExport">匯出題庫</button><button class="ghost" id="bkImport">匯入題庫</button><button class="ghost" id="bkCsvOut" title="下載成 CSV，可以上傳到 Google 試算表編輯，也可以當成新增題目的範本">下載試算表</button><button class="ghost" id="bkCsvIn" title="在 Google 試算表選「檔案 → 下載 → CSV」，再用這個按鈕匯入">匯入試算表</button><button class="ghost warn" id="bkReset">恢復內建題庫</button><input type="file" id="bkFile" accept=".json,application/json" hidden><input type="file" id="bkCsv" accept=".csv,text/csv" hidden></div>
-  <div style="margin:12px 0 6px;display:grid;gap:6px"><label for="bkSheet" style="font-weight:900">題庫試算表（開遊戲時自動同步）</label><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="bkSheet" placeholder="貼上 Google 試算表網址（共用設定要是「知道連結的任何人都能檢視」）" style="flex:1 1 260px;min-width:0;font:inherit;padding:9px 11px;border-radius:8px;border:2px solid #2f4f6e;background:#06142a;color:#fff"><button class="ghost" id="bkSheetSave">儲存網址</button><button class="go" id="bkSheetSync" style="margin:0">從試算表更新</button></div><small id="bkSheetMsg" style="color:#9fb3c8;line-height:1.6;white-space:pre-line">遊戲只讀第一個工作表。比賽開始後不會自動更新；試算表是空的、讀不到或格式有錯時，會繼續用上一次的題庫。</small></div>
+  <div style="margin:12px 0 6px;display:grid;gap:6px"><label for="bkSheet" style="font-weight:900">題庫試算表（開遊戲時自動同步）</label><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="bkSheet" placeholder="貼上 Google 試算表網址（共用設定要是「知道連結的任何人都能檢視」）" style="flex:1 1 260px;min-width:0;font:inherit;padding:9px 11px;border-radius:8px;border:2px solid #2f4f6e;background:#06142a;color:#fff"><button class="ghost" id="bkSheetSave">儲存網址</button><button class="go" id="bkSheetSync" style="margin:0">從試算表更新</button></div><small id="bkSheetMsg" style="color:#9fb3c8;line-height:1.6;white-space:pre-line">網址裡有「gid=」就讀那個工作表，沒有就讀第一個。比賽開始後不會自動更新；試算表是空的、讀不到或格式有錯時，會繼續用上一次的題庫。</small></div>
   <div style="margin:12px 0 6px;display:grid;gap:6px"><label for="bkSong" style="font-weight:900">猜歌歌單（所有猜歌題都從這裡隨機抽歌）</label><div style="display:flex;gap:8px"><input id="bkSong" placeholder="貼上 YouTube 播放清單網址，例如 https://www.youtube.com/playlist?list=PL…" style="flex:1;min-width:0;font:inherit;padding:9px 11px;border-radius:8px;border:2px solid #2f4f6e;background:#06142a;color:#fff"><button class="ghost" id="bkSongSave">儲存歌單</button></div><small id="bkSongMsg" style="color:#9fb3c8;line-height:1.6">沒填時，每題猜歌用題目裡自己填的歌。建議用自己建立的播放清單（網址有 list=PL…）；YouTube 自動產生的合輯（list=RD…）每次內容可能不一樣。</small><details id="bkSongList" hidden style="border:0;background:none;margin:2px 0 0;border-radius:0"><summary style="display:block;grid-template-columns:none;padding:4px 0;cursor:pointer;color:#bfe8ff;font-size:14px">▸ 查看歌單裡有哪些歌<span id="bkSongN"></span></summary><ol id="bkSongOl" style="max-height:320px;overflow:auto;margin:8px 0;padding-left:28px;line-height:1.7;color:#cdd6e0;font-size:14px"></ol></details></div>
   <p class="lockmsg" id="bkLock"></p><p class="okmsg" id="bkMsg"></p>
   <div id="bkTabs"></div><div class="hd"><span></span><span>分類</span><span>題型</span><span>題名</span><span style="text-align:right">題數</span><span></span></div><div id="bkList"></div>
@@ -1106,18 +1106,18 @@ function showSongList(ids){ const ol = $("#bkSongOl"); $("#bkSongN").textContent
 $("#bkSongList").addEventListener("toggle", async e => { if(!e.target.open || !listId(SONGLIST)) return; $("#bkSongOl").innerHTML = '<li style="list-style:none;margin-left:-28px">讀取歌單中…</li>'; showSongList(await playlistIds().catch(() => [])); });
 // ===== 題庫試算表：開遊戲時從 Google 試算表同步題庫（讀第一個工作表）=====
 // 保護規則：比賽已經開始（有答題紀錄或題目進行中）就不自動更新；試算表是空的、讀不到、格式有錯都不套用，繼續用上一次的題庫
-const SHEET_DEFAULT = "https://docs.google.com/spreadsheets/d/16Qtrbkb-KEFRFyBvwv8Z3jwFpYqFJkOF4_W6cwGgk3o/edit";
+const SHEET_DEFAULT = "https://docs.google.com/spreadsheets/d/16Qtrbkb-KEFRFyBvwv8Z3jwFpYqFJkOF4_W6cwGgk3o/edit?gid=20241225#gid=20241225";   // 「題庫（翻新版）」工作表
 let SHEETURL = SHEET_DEFAULT; try{ const v = localStorage.getItem("pkq-sheet"); if(v !== null) SHEETURL = v; }catch(e){}
 const sheetId = v => (String(v || "").match(/\/spreadsheets\/d\/([\w-]{20,})/) || [])[1] || null;
 const gameStarted = () => S.log.length > 0 || !!S.cur;
 function toast(t, warn, ms){ const e = $("#toast"); e.textContent = t; e.className = warn ? "warn" : ""; e.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => e.hidden = true, ms || (warn ? 9000 : 4000)); }
 function sheetMsg(t, warn){ const m = $("#bkSheetMsg"); m.textContent = t; m.style.color = warn ? "#ff9aa8" : "#9fb3c8"; }
-async function sheetSync(manual){ const id = sheetId(SHEETURL); if(!id) return;
+async function sheetSync(manual){ const id = sheetId(SHEETURL); if(!id) return; const gid = (String(SHEETURL).match(/[#?&]gid=(\d+)/) || [])[1], tab = gid ? "&gid=" + gid : "";   // 網址有 gid 就讀那個工作表，沒有就讀第一個
   const keep = "，繼續使用目前的題庫";
   if(!manual && gameStarted()){ sheetMsg("比賽進行中，題庫維持開賽時的版本。要更新請按「從試算表更新」"); toast("比賽進行中，題庫維持開賽時的版本，沒有從試算表更新"); return; }
   if(manual) sheetMsg("從試算表讀取中…");
   let text = "";
-  try{ for(const u of [`https://docs.google.com/spreadsheets/d/${id}/export?format=csv`, `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv`]){   // export 讀原始內容；讀不到再用 gviz
+  try{ for(const u of [`https://docs.google.com/spreadsheets/d/${id}/export?format=csv${tab}`, `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv${tab}`]){   // export 讀原始內容；讀不到再用 gviz
       try{ const r = await fetch(u, {cache:"no-store"}); if(r.ok){ text = await r.text(); break; } }catch(e){} }
     if(!text && !(await fetch(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json`, {cache:"no-store"}).then(r => r.ok).catch(() => false))) throw new Error("讀不到試算表（這台電腦可能沒有網路，或試算表沒有開放「知道連結的任何人都能檢視」）");
     if(!text.trim()) throw new Error("試算表是空的");
