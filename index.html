@@ -1171,7 +1171,8 @@ function Quiz(kind = "quiz"){
   const cq = CUR && CUR.q || {}, grid = kind === "grid", song = kind === "song", RL = grid ? gridRounds(cq) : song ? [listId(SONGLIST) ? {q:"請講出這首歌的歌名", list:true, title:""} : (L => L[Math.floor(Math.random()*L.length)])(cq.songs || SONGS)] : (cq.qs || QS);   // 每題的內容：可由題庫指定，沒有就用占位內容
   let qi = -1, q, phase = "ask", nextAt = 0, endAt = 0, revealAt = 0, kills = 0, qLines = [], got = [], mp = {x:0,y:0,w:0,h:0}, banner = null, rev = false, jumpB, playB, showB, rightP, wrongP, fixB, nextB, endB, snap = null, last = null, resumeAfter = false;
   const pads = [], BOX = [C.cyan,C.violet,C.gold,C.green], tm = qTimer(timeUp), pl = song ? songPlayer() : null;
-  const btns = () => (phase === "judged" ? [fixB,nextB] : phase === "timeout" ? [endB] : phase === "shown" ? [rightP,wrongP] : phase === "ask" ? (song ? [jumpB,playB,showB] : grid ? [showB] : []) : []).filter(Boolean);   // 猜歌、九宮格：主持人不一定知道答案，先「公布答案」再判定對錯
+  const pb = () => song ? [playB] : [];   // 猜歌公布答案、判定、時間到之後都還能繼續聽
+  const btns = () => (phase === "judged" ? [fixB,...pb(),nextB] : phase === "timeout" ? [...pb(),endB] : phase === "shown" ? [...pb(),rightP,wrongP] : phase === "ask" ? (song ? [jumpB,playB,showB] : grid ? [showB] : []) : []).filter(Boolean);   // 猜歌、九宮格：主持人不一定知道答案，先「公布答案」再判定對錯
   const setPads = () => { s.pads = [...pads, ...btns()]; s.layout(); };
   const ansText = () => song ? (q.title || "（歌名讀取中）") : grid ? `${q.targets.length} 人` : `${"ABCD"[q.a]}　${q.o[q.a]}`;
   const say = (main, color) => { rev = true; banner = song ? {text:main, color} : {text:main, sub:`答案：${ansText()}`, color}; };
@@ -1190,8 +1191,9 @@ function Quiz(kind = "quiz"){
     enter(){ got = RL.map(() => false); ask(); },
     exit(){ if(pl) pl.stop(); },
     onPause(on){ if(!pl) return; if(on){ resumeAfter = pl.playing; pl.pause(); } else if(resumeAfter){ resumeAfter = false; pl.play(); } },
-    onBg(x,y){ if(!song || phase !== "ask") return; const t = s.tl; if(x >= t.x-10 && x <= t.x+t.w+10 && y >= t.y-18 && y <= t.y+t.h+18) pl.seek(clamp((x-t.x)/t.w,0,1)); },
+    onBg(x,y){ if(!song || !["ask","shown","judged","timeout"].includes(phase)) return; const t = s.tl; if(x >= t.x-10 && x <= t.x+t.w+10 && y >= t.y-18 && y <= t.y+t.h+18) pl.seek(clamp((x-t.x)/t.w,0,1)); },
     onPad(p){
+      if(song && p === playB && phase !== "ask"){ SFX.pop(); pl.toggle(); return; }
       if(phase === "timeout"){ if(p === endB){ SFX.pop(); phase = "wait"; nextAt = T; setPads(); } return; }
       if(phase === "judged"){ if(p === fixB){ G.score = snap.score; G.combo = snap.combo; G.maxCombo = snap.maxCombo; kills = snap.kills; got = [...snap.got]; judge(!last, true); } else if(p === nextB){ phase = "wait"; nextAt = T; setPads(); } return; }
       if(phase === "shown"){ if(p === rightP) return judge(true); if(p === wrongP) return judge(false); return; }
