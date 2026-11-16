@@ -192,7 +192,7 @@ html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;backgrou
   <div style="margin:12px 0 6px;display:grid;gap:6px"><label for="bkSong" style="font-weight:900">猜歌歌單（所有猜歌題都從這裡隨機抽歌）</label><div style="display:flex;gap:8px"><input id="bkSong" placeholder="貼上 YouTube 播放清單網址，例如 https://www.youtube.com/playlist?list=PL…" style="flex:1;min-width:0;font:inherit;padding:9px 11px;border-radius:8px;border:2px solid #2f4f6e;background:#06142a;color:#fff"><button class="ghost" id="bkSongSave">儲存歌單</button></div><small id="bkSongMsg" style="color:#9fb3c8;line-height:1.6">沒填時，每題猜歌用題目裡自己填的歌。建議用自己建立的播放清單（網址有 list=PL…）；YouTube 自動產生的合輯（list=RD…）每次內容可能不一樣。</small><details id="bkSongList" hidden style="border:0;background:none;margin:2px 0 0;border-radius:0"><summary style="display:block;grid-template-columns:none;padding:4px 0;cursor:pointer;color:#bfe8ff;font-size:14px">▸ 查看歌單裡有哪些歌<span id="bkSongN"></span></summary><ol id="bkSongOl" style="max-height:320px;overflow:auto;margin:8px 0;padding-left:28px;line-height:1.7;color:#cdd6e0;font-size:14px"></ol></details></div>
   <p class="lockmsg" id="bkLock"></p><p class="okmsg" id="bkMsg"></p>
   <div id="bkTabs"></div><div class="hd"><span></span><span>分類</span><span>題型</span><span>題名</span><span style="text-align:right">題數</span><span></span></div><div id="bkList"></div>
-  <h2>題型說明：每種題型要填哪些資料</h2><p class="tip">新增或編輯題目時對照用。用試算表出題的話：一題的第一列填分類、題名、題型，下面的小題把這三格留空，就會歸到同一題；「小題」欄寫 1、2、3 方便對照。</p><div id="bkTypes"></div>
+  <h2>題型說明：每種題型要填哪些資料</h2><p class="tip">新增或編輯題目時對照用。用試算表出題的話，同一題的小題要放在相鄰的列。第一列填分類、題名、題型，下面的小題建議把這三格留空，就不會不小心改錯。如果填了卻和第一列不一樣，或同一個題名出現在兩個地方，遊戲會指出是第幾列，並且不套用這次的試算表。</p><div id="bkTypes"></div>
   <div class="act"><button class="ghost" id="bkClose" style="font:inherit;cursor:pointer;padding:10px 22px;border-radius:12px;font-weight:900;border:2px solid #5b6b7c;background:transparent;color:#cdd6e0">關閉</button></div>
 </div></div>
 <div id="bkEdit" hidden role="dialog" aria-label="編輯題目"><div class="in"><div class="eb">EDIT</div><h1 id="edTitle">編輯題目</h1><div id="edBody"></div><div class="foot"><div class="err" id="edMsg"></div><div class="act"><button class="ghost" id="edCancel">取消</button><button class="go" id="edSave">儲存</button></div></div></div></div>
@@ -1029,13 +1029,17 @@ function bankToCSV(){ const rows = [CSV_HEAD];
 function csvToBank(text){ const rows = parseCSV(text), head = (rows.shift() || []).map(h => h.trim()), col = n => head.indexOf(n), errs = [], out = [], byKey = new Map(), TY = {};
   if(["分類","題名","題型"].some(n => col(n) < 0)) throw new Error("第一列要是標題列：" + CSV_HEAD.join("、"));
   Object.keys(TYPE_INFO).forEach(k => [k, TYPE_CSV[k], TYPE_INFO[k].name, TYPE_INFO[k].name.replace(/（.*）/,"")].forEach(n => TY[n.toLowerCase()] = k));
-  let prev = null;   // 分類、題名、題型三格都空白的列，屬於上面那一題（舊的每列都寫滿的格式也照樣讀得懂）
-  rows.forEach((r,ri) => { const raw = n => col(n) < 0 ? "" : (r[col(n)] ?? "").trim(), up3 = ["分類","題名","題型"], inherit = prev && up3.every(n => !raw(n));
-    const g = n => inherit && up3.includes(n) ? prev[n] : raw(n), at = `第 ${ri+2} 列：`, title = g("題名"), t = TY[g("題型").toLowerCase()], cat = CATS.findIndex(c => c.name.toLowerCase() === g("分類").toLowerCase());
+  // 同一題的小題要放在相鄰的列。第 2 列之後，分類、題名、題型留空就沿用第一列；填了卻和第一列不一樣，就當成錯誤（避免題目被悄悄拆開）
+  let prev = null; const seen = new Map(), same = (f,a,b) => f === "題型" ? TY[a.toLowerCase()] === TY[b.toLowerCase()] : a.toLowerCase() === b.toLowerCase();
+  rows.forEach((r,ri) => { const raw = n => col(n) < 0 ? "" : (r[col(n)] ?? "").trim(), at = `第 ${ri+2} 列：`, cont = !!prev && (!raw("題名") || raw("題名") === prev.題名);
+    const g = n => cont && ["分類","題名","題型"].includes(n) ? (raw(n) || prev[n]) : raw(n), title = g("題名"), t = TY[g("題型").toLowerCase()], cat = CATS.findIndex(c => c.name.toLowerCase() === g("分類").toLowerCase());
+    if(cont){ const bad = ["分類","題型"].find(f => raw(f) && !same(f, raw(f), prev[f]));
+      if(bad) return errs.push(at + `${bad}是「${raw(bad)}」，但同一題「${title}」的第 ${prev.row} 列是「${prev[bad]}」。同一題的每一列要一樣，建議第 2 列之後直接留空`); }
     if(cat < 0) return errs.push(at + `分類「${g("分類")}」不存在，只能填 ${CATS.map(c => c.name).join("、")}`);
     if(!t) return errs.push(at + `題型「${g("題型")}」不存在，只能填 ${Object.values(TYPE_CSV).join("、")}`);
     if(!title) return errs.push(at + "題名不能空白");
-    prev = {分類:g("分類"), 題名:title, 題型:g("題型")};
+    if(!cont){ const key = cat + "\n" + title; if(seen.has(key)) return errs.push(at + `題名「${title}」在第 ${seen.get(key)} 列已經出現過。同一題的小題要放在相鄰的列，不同的題目請換一個題名`);
+      seen.set(key, ri+2); prev = {分類:g("分類"), 題名:title, 題型:g("題型"), row:ri+2}; }
     let n = byKey.get(cat + "\n" + title); if(!n){ n = {cat, title, type:t, rows:[]}; byKey.set(cat + "\n" + title, n); out.push(n); } else if(n.type !== t) return errs.push(at + `同一題「${title}」的每一列題型要一樣`);
     if(!n.intro && g("開場字幕")) n.intro = g("開場字幕").split(/\s*[|｜]\s*/);
     if(t === "rhythm") return;
