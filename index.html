@@ -1275,7 +1275,7 @@ function Quiz(kind = "quiz"){
     else { sel.state = "empty"; SFX.boxOpen(); miss(sel.x,sel.y-sel.r*1.5,"MISS",2.6); revealAt = T + .8; }
     setPads(); }
   function revealGrid(){ pads.forEach(p => { const hit = q.targets.includes(p.idx); p.state = hit ? "win" : ""; p.dim = !hit; }); }   // 公布時標出符合條件的人
-  function judge(ok, redo){ if(pl) pl.pause(); tm.stop(); if(!redo) snap = {score:G.score, combo:G.combo, maxCombo:G.maxCombo, kills, got:[...got]};   // 主持人判定：按錯可以按「更正」改回來
+  function judge(ok, redo){ tm.stop(); if(!redo) snap = {score:G.score, combo:G.combo, maxCombo:G.maxCombo, kills, got:[...got]};   // 主持人判定：按錯可以按「更正」改回來。猜歌按答對、答錯時音樂繼續播，想停再按「暫停」
     phase = "judged"; last = ok; fixB = iconPill("back","更正","#5b6b7c"); nextB = miniPad(qi >= RL.length-1 ? "完成" : "下一題",C.green);
     say(ok ? "答對了！" : "答錯了", ok ? C.gold : C.red); if(grid) revealGrid(); setPads();
     const x = s.qx, y = song ? mp.y+mp.h/2 : s.bnY; ok ? award(x,y,0) : miss(x,y,"",0); }
