@@ -192,7 +192,7 @@ html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;backgrou
   <div style="margin:12px 0 6px;display:grid;gap:6px"><label for="bkSong" style="font-weight:900">猜歌歌單（所有猜歌題都從這裡隨機抽歌）</label><div style="display:flex;gap:8px"><input id="bkSong" placeholder="貼上 YouTube 播放清單網址，例如 https://www.youtube.com/playlist?list=PL…" style="flex:1;min-width:0;font:inherit;padding:9px 11px;border-radius:8px;border:2px solid #2f4f6e;background:#06142a;color:#fff"><button class="ghost" id="bkSongSave">儲存歌單</button></div><small id="bkSongMsg" style="color:#9fb3c8;line-height:1.6">沒填時，每題猜歌用題目裡自己填的歌。建議用自己建立的播放清單（網址有 list=PL…）；YouTube 自動產生的合輯（list=RD…）每次內容可能不一樣。</small><details id="bkSongList" hidden style="border:0;background:none;margin:2px 0 0;border-radius:0"><summary style="display:block;grid-template-columns:none;padding:4px 0;cursor:pointer;color:#bfe8ff;font-size:14px">▸ 查看歌單裡有哪些歌<span id="bkSongN"></span></summary><ol id="bkSongOl" style="max-height:320px;overflow:auto;margin:8px 0;padding-left:28px;line-height:1.7;color:#cdd6e0;font-size:14px"></ol></details></div>
   <p class="lockmsg" id="bkLock"></p><p class="okmsg" id="bkMsg"></p>
   <div id="bkTabs"></div><div class="hd"><span></span><span>分類</span><span>題型</span><span>題名</span><span style="text-align:right">題數</span><span></span></div><div id="bkList"></div>
-  <h2>題型說明：每種題型要填哪些資料</h2><p class="tip">新增或編輯題目時對照用。用試算表出題的話，同一題的小題要放在相鄰的列。第一列填分類、題名、題型，下面的小題建議把這三格留空，就不會不小心改錯。如果填了卻和第一列不一樣，或同一個題名出現在兩個地方，遊戲會指出是第幾列，並且不套用這次的試算表。</p><div id="bkTypes"></div>
+  <h2>題型說明：每種題型要填哪些資料</h2><p class="tip">新增或編輯題目時對照用。用試算表出題的話，一列就是一題。同一個分類裡的題名不能重複，重複時遊戲會指出是第幾列，並且不套用這次的試算表。</p><div id="bkTypes"></div>
   <div class="act"><button class="ghost" id="bkClose" style="font:inherit;cursor:pointer;padding:10px 22px;border-radius:12px;font-weight:900;border:2px solid #5b6b7c;background:transparent;color:#cdd6e0">關閉</button></div>
 </div></div>
 <div id="bkEdit" hidden role="dialog" aria-label="編輯題目"><div class="in"><div class="eb">EDIT</div><h1 id="edTitle">編輯題目</h1><div id="edBody"></div><div class="foot"><div class="err" id="edMsg"></div><div class="act"><button class="ghost" id="edCancel">取消</button><button class="go" id="edSave">儲存</button></div></div></div></div>
@@ -286,7 +286,10 @@ const BANK0 = [
 ].map(([cat,title,type],i,arr) => ({id:`c${cat}-${arr.slice(0,i).filter(x => x[0] === cat).length+1}`, cat, title, type, placeholder:true}));
 // 連連看、看圖猜詞已移除：舊題庫裡用到它們的占位題換成新的內建版本，自訂的題目就拿掉
 const TYPES = ["quiz","song","grid","sort","tf","rhythm","buzz"];
-const fixBank = b => b && b.map(q => TYPES.includes(q.type) ? q : q.placeholder ? BANK0.find(x => x.id === q.id) : null).filter(q => q && TYPES.includes(q.type)).map(q => ({...q}));
+const fixBank = b => b && b.map(q => TYPES.includes(q.type) ? q : q.placeholder ? BANK0.find(x => x.id === q.id) : null).filter(q => q && TYPES.includes(q.type))
+  .map(q => { const c = {...q}; ["qs","rounds","songs"].forEach(k => { if(Array.isArray(c[k]) && c[k].length > 1) c[k] = c[k].slice(0,1); }); return c; });   // 一題只放一個題目：舊題庫一題有多個小題的，只留第一個
+const phIdx = q => (parseInt(String(q && q.id).split("-")[1]) || 1) - 1 + ((q && q.cat) || 0);   // 占位題輪流用不同的占位內容，不要每一題都一樣
+const pick1 = (own, list, q) => own && own.length ? own.slice(0,1) : [list[phIdx(q) % list.length]];
 let BANK = fixBank(loadBank()) || BANK0.map(q => ({...q}));
 const G = {score:0, combo:0, maxCombo:0, hearts:3, showHearts:false};
 
@@ -851,13 +854,13 @@ const TYPE_HELP = {
 const esc = v => String(v).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const introOf = q => ({lines: q.intro || INTRO[q.type], big: `${q.title}！`, own: !!q.intro});
 function bankRounds(q){   // 這一題實際會用到的內容（沒指定就是占位內容）
-  if(q.type === "quiz") return (q.qs || QS).map(r => `${r.q}　選項：${r.o.map((t,i) => (i === r.a ? "★" : "") + t).join("、")}`);
+  if(q.type === "quiz") return pick1(q.qs, QS, q).map(r => `${r.q}　選項：${r.o.map((t,i) => (i === r.a ? "★" : "") + t).join("、")}`);
   if(q.type === "song" && listId(SONGLIST)) return ["從猜歌歌單隨機抽一首"];
-  if(q.type === "song") return (q.songs || SONGS).map(r => `歌名：${r.title}${ytId(r.yt) ? "（YouTube）" : r.src ? "（音檔）" : "（占位旋律）"}`);
-  if(q.type === "grid") return gridRounds(q).map(r => `${r.q}　答案：${r.targets.length} 人（第 ${r.targets.map(i => i+1).join("、")} 格）`);
-  if(q.type === "sort") return (q.rounds || ROUND_DATA.sort).map(r => `${r.q}　正確順序：${r.items.join(" → ")}`);
-  if(q.type === "buzz") return (q.rounds || BUZZ0).map(r => `${r.q}　答案：${r.answer}`);
-  if(q.type === "tf") return (q.rounds || ROUND_DATA.tf).map(r => `${r.q}　答案：${r.a ? "真" : "假"}　${r.note || ""}`);
+  if(q.type === "song") return pick1(q.songs, SONGS, q).map(r => `歌名：${r.title}${ytId(r.yt) ? "（YouTube）" : r.src ? "（音檔）" : "（占位旋律）"}`);
+  if(q.type === "grid") return pick1(q.rounds, gridRounds(q), q).map(r => `${r.q}　答案：${r.targets.length} 人（第 ${r.targets.map(i => i+1).join("、")} 格）`);
+  if(q.type === "sort") return pick1(q.rounds, ROUND_DATA.sort, q).map(r => `${r.q}　正確順序：${r.items.join(" → ")}`);
+  if(q.type === "buzz") return pick1(q.rounds, BUZZ0, q).map(r => `${r.q}　答案：${r.answer}`);
+  if(q.type === "tf") return pick1(q.rounds, ROUND_DATA.tf, q).map(r => `${r.q}　答案：${r.a ? "真" : "假"}　${r.note || ""}`);
   if(q.type === "rhythm") return [`共 ${RUNS} run，使用 ${(q.photos && q.photos.length >= 4 ? q.photos : PHOTOS).length} 張圖片${q.photos && q.photos.length >= 4 ? "（自訂）" : "（內建占位圖）"}，節拍 ${BPM} BPM`];
   return [];
 }
@@ -908,11 +911,11 @@ const setPath = (o,p,v) => { const k = p.split("."); let c = o; for(let i=0;i<k.
 const getPath = (o,p) => p.split(".").reduce((c,k) => c == null ? c : c[k], o);
 function newQ(){ return {id:"u"+Math.random().toString(36).slice(2,8), cat:0, title:"", type:"quiz", qs:[BLANK.quiz()], placeholder:false}; }
 function toEditable(q){ const c = JSON.parse(JSON.stringify(q)), t = c.type, key = rk(t);
-  if(t === "grid" && !c.rounds) c.rounds = gridRounds(q).map(r => ({q:r.q, targets:[...r.targets], cells:r.cells.map(x => ({img:null, ...x}))}));   // 內建占位題：把產生出來的內容帶進來編輯
-  else if(t === "quiz" && !c.qs) c.qs = QS.map(r => ({q:r.q, o:[...r.o], a:r.a}));
-  else if(t === "song" && !c.songs) c.songs = SONGS.map(r => ({q:r.q, title:r.title, yt:"", src:null}));
-  else if(["sort","tf"].includes(t) && !c.rounds) c.rounds = JSON.parse(JSON.stringify(ROUND_DATA[t]));
-  else if(t === "buzz" && !c.rounds) c.rounds = BUZZ0.map(r => ({...r}));
+  if(t === "grid" && !c.rounds) c.rounds = pick1(null, gridRounds(q), q).map(r => ({q:r.q, targets:[...r.targets], cells:r.cells.map(x => ({img:null, ...x}))}));   // 內建占位題：把產生出來的內容帶進來編輯
+  else if(t === "quiz" && !c.qs) c.qs = pick1(null, QS, q).map(r => ({q:r.q, o:[...r.o], a:r.a}));
+  else if(t === "song" && !c.songs) c.songs = pick1(null, SONGS, q).map(r => ({q:r.q, title:r.title, yt:"", src:null}));
+  else if(["sort","tf"].includes(t) && !c.rounds) c.rounds = JSON.parse(JSON.stringify(pick1(null, ROUND_DATA[t], q)));
+  else if(t === "buzz" && !c.rounds) c.rounds = pick1(null, BUZZ0, q).map(r => ({...r}));
   else if(t === "rhythm" && !c.photos) c.photos = [];
   return c; }
 const fld = (label,inner,hint) => `<div class="f"><span>${label}</span>${inner}${hint ? `<small>${hint}</small>` : ""}</div>`;
@@ -927,7 +930,7 @@ function roundHtml(t,r,i){ const k = rk(t) + "." + i; let h = "";
   else if(t === "buzz") h = fld("題目",area(k+".q",r.q,"主持人會念出這一題")) + fld("答案",inp(k+".answer",r.answer,"主持人判定用，公布時會顯示"));
   else if(t === "tf") h = fld("陳述句",area(k+".q",r.q,"例如：章魚有三顆心臟")) + `<div class="opt"><label><input type="radio" name="tf${i}" data-p="${k}.a" data-bool="1" ${r.a ? "checked" : ""}> 這句話是「真」</label><label><input type="radio" name="tf${i}" data-p="${k}.a" data-bool="0" ${!r.a ? "checked" : ""}> 這句話是「假」</label></div>` + fld("答案說明（答題後會跳出視窗顯示）",area(k+".note",r.note,"針對題目問的內容做解釋",3));
   const n = ED.q[rk(t)].length;
-  return `<fieldset><legend><b>${i+1}</b>第 ${i+1} ${ROUND_LABEL[t]}</legend>${h}${n > 1 ? `<button type="button" class="ghost sm" data-act="delr" data-i="${i}">刪除這${ROUND_LABEL[t]}</button>` : ""}</fieldset>`; }
+  return `<fieldset><legend>題目內容</legend>${h}${n > 1 ? `<button type="button" class="ghost sm" data-act="delr" data-i="${i}">刪除這${ROUND_LABEL[t]}</button>` : ""}</fieldset>`; }
 const fit = el => { el.style.height = "auto"; el.style.height = el.scrollHeight + 2 + "px"; };
 const fitAll = () => document.querySelectorAll("#edBody textarea").forEach(fit);
 function edRender(){ const q = ED.q, t = q.type, body = $("#edBody"), top = body.scrollTop;
@@ -936,7 +939,7 @@ function edRender(){ const q = ED.q, t = q.type, body = $("#edBody"), top = body
     + fld("題型",`<select data-p="type">${Object.entries(TYPE_INFO).map(([k,v]) => `<option value="${k}" ${t === k ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select>`) + `</div><p class="tdesc">${esc(TYPE_INFO[t].desc)}</p>`
     + `<h3 class="sh">開場字幕</h3>` + fld("三句短句（依序出現，最後才砸出大標題）",`<div class="cols3">${[0,1,2].map(i => `<textarea class="one" rows="1" data-intro="${i}" aria-label="第 ${i+1} 句">${esc(ED.intro[i] || "")}</textarea>`).join("")}</div>`,"預設是這個題型的句子，可以改成和這題內容有關的話。大標題一定是題名") + `<h3 class="sh">題目內容</h3>`;
   if(t === "rhythm") h += fld("節奏遊戲的圖片（至少 4 張）",`<div class="photos">${(q.photos||[]).map((r,i) => `<span class="ph1"><img data-ref="${esc(r)}" alt=""><button type="button" data-act="rmph" data-i="${i}">×</button></span>`).join("")}</div><input type="file" accept="image/*" multiple data-file="photos" data-kind="img" data-multi="1">`,"不上傳就使用內建的 4 張占位圖。圖片會自動裁成正方形");
-  else h += q[rk(t)].map((r,i) => roundHtml(t,r,i)).join("") + `<button type="button" class="ghost sm" data-act="addr">＋ 新增一${ROUND_LABEL[t]}</button>`;
+  else h += q[rk(t)].map((r,i) => roundHtml(t,r,i)).join("");
   body.innerHTML = h; body.scrollTop = top; $("#edMsg").textContent = ED.msg || ""; ED.msg = "";
   fitAll();
   body.querySelectorAll("img[data-ref]").forEach(async im => { try{ const b = await MDB.get(im.dataset.ref); if(b) im.src = URL.createObjectURL(b); }catch(e){} }); }
@@ -1005,7 +1008,7 @@ async function loadBankFile(){ bankFilePush.on = true;
     await applyBank(o); try{ localStorage.setItem(BANK_KEY, JSON.stringify(BANK)); }catch(e){}
     if(scene && scene.home && !trans) setScene(Home()); }catch(e){ console.error(e); } }
 // ===== 試算表（CSV）：題庫和 Google 試算表互轉。一列是一個小題，分類＋題名相同的列合成同一題 =====
-const CSV_HEAD = ["分類","題名","題型","小題","題目內容","答案","選項1","選項2","選項3","選項4","選項5","說明","開場字幕","YouTube"];
+const CSV_HEAD = ["分類","題名","題型","題目內容","答案","選項1","選項2","選項3","選項4","選項5","說明","開場字幕","YouTube"];
 const TYPE_CSV = {quiz:"選擇題", song:"猜歌", grid:"九宮格", sort:"排序", tf:"真假", rhythm:"節奏", buzz:"搶答"};
 const csvCell = v => /[",\r\n]/.test(v = String(v ?? "")) ? `"${v.replace(/"/g,'""')}"` : v;
 const toCSV = rows => "﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n");   // 開頭的 BOM 讓 Excel 用 UTF-8 開，中文才不會變亂碼
@@ -1024,22 +1027,17 @@ function bankToCSV(){ const rows = [CSV_HEAD];
       else if(t === "song"){ qq = r.q; ans = r.title; yt = r.yt || ""; }
       else if(t === "buzz"){ qq = r.q; ans = r.answer; }
       else if(t === "grid"){ qq = r.q; ans = r.targets.map(x => x+1).join(","); }
-      rows.push([...(i ? ["","",""] : base), t === "rhythm" ? "" : i+1, qq, ans, ...o, note, i ? "" : intro, yt]); }); });   // 分組寫法：一題只在第一列寫分類、題名、題型，下面的小題這三格留空
+      rows.push([...base, qq, ans, ...o, note, intro, yt]); }); });   // 一列就是一題
   return toCSV(rows); }
 function csvToBank(text){ const rows = parseCSV(text), head = (rows.shift() || []).map(h => h.trim()), col = n => head.indexOf(n), errs = [], out = [], byKey = new Map(), TY = {};
   if(["分類","題名","題型"].some(n => col(n) < 0)) throw new Error("第一列要是標題列：" + CSV_HEAD.join("、"));
   Object.keys(TYPE_INFO).forEach(k => [k, TYPE_CSV[k], TYPE_INFO[k].name, TYPE_INFO[k].name.replace(/（.*）/,"")].forEach(n => TY[n.toLowerCase()] = k));
-  // 同一題的小題要放在相鄰的列。第 2 列之後，分類、題名、題型留空就沿用第一列；填了卻和第一列不一樣，就當成錯誤（避免題目被悄悄拆開）
-  let prev = null; const seen = new Map(), same = (f,a,b) => f === "題型" ? TY[a.toLowerCase()] === TY[b.toLowerCase()] : a.toLowerCase() === b.toLowerCase();
-  rows.forEach((r,ri) => { const raw = n => col(n) < 0 ? "" : (r[col(n)] ?? "").trim(), at = `第 ${ri+2} 列：`, cont = !!prev && (!raw("題名") || raw("題名") === prev.題名);
-    const g = n => cont && ["分類","題名","題型"].includes(n) ? (raw(n) || prev[n]) : raw(n), title = g("題名"), t = TY[g("題型").toLowerCase()], cat = CATS.findIndex(c => c.name.toLowerCase() === g("分類").toLowerCase());
-    if(cont){ const bad = ["分類","題型"].find(f => raw(f) && !same(f, raw(f), prev[f]));
-      if(bad) return errs.push(at + `${bad}是「${raw(bad)}」，但同一題「${title}」的第 ${prev.row} 列是「${prev[bad]}」。同一題的每一列要一樣，建議第 2 列之後直接留空`); }
+  const seen = new Map();   // 一列就是一題：同一個分類裡的題名不能重複（通常是複製貼上或忘了改題名）
+  rows.forEach((r,ri) => { const g = n => col(n) < 0 ? "" : (r[col(n)] ?? "").trim(), at = `第 ${ri+2} 列：`, title = g("題名"), t = TY[g("題型").toLowerCase()], cat = CATS.findIndex(c => c.name.toLowerCase() === g("分類").toLowerCase());
     if(cat < 0) return errs.push(at + `分類「${g("分類")}」不存在，只能填 ${CATS.map(c => c.name).join("、")}`);
     if(!t) return errs.push(at + `題型「${g("題型")}」不存在，只能填 ${Object.values(TYPE_CSV).join("、")}`);
     if(!title) return errs.push(at + "題名不能空白");
-    if(!cont){ const key = cat + "\n" + title; if(seen.has(key)) return errs.push(at + `題名「${title}」在第 ${seen.get(key)} 列已經出現過。同一題的小題要放在相鄰的列，不同的題目請換一個題名`);
-      seen.set(key, ri+2); prev = {分類:g("分類"), 題名:title, 題型:g("題型"), row:ri+2}; }
+    { const key = cat + "\n" + title; if(seen.has(key)) return errs.push(at + `題名「${title}」和第 ${seen.get(key)} 列重複。一題只能有一個題目，同一個分類裡的題名不能重複`); seen.set(key, ri+2); }
     let n = byKey.get(cat + "\n" + title); if(!n){ n = {cat, title, type:t, rows:[]}; byKey.set(cat + "\n" + title, n); out.push(n); } else if(n.type !== t) return errs.push(at + `同一題「${title}」的每一列題型要一樣`);
     if(!n.intro && g("開場字幕")) n.intro = g("開場字幕").split(/\s*[|｜]\s*/);
     if(t === "rhythm") return;
@@ -1228,7 +1226,7 @@ function songPlayer(){ let r = null, el = null, yt = null, bus = null, playing =
 // 時間到：算答錯並公布答案，由主持人按「答題結束」才繼續
 function Quiz(kind = "quiz"){
   Object.assign(G,{score:0,combo:0,maxCombo:0,hearts:3,showHearts:false});
-  const cq = CUR && CUR.q || {}, grid = kind === "grid", song = kind === "song", RL = grid ? gridRounds(cq) : song ? [listId(SONGLIST) ? {q:"請講出這首歌的歌名", list:true, title:""} : (L => L[Math.floor(Math.random()*L.length)])(cq.songs || SONGS)] : (cq.qs || QS);   // 每題的內容：可由題庫指定，沒有就用占位內容
+  const cq = CUR && CUR.q || {}, grid = kind === "grid", song = kind === "song", RL = grid ? pick1(cq.rounds, gridRounds(cq), cq) : song ? [listId(SONGLIST) ? {q:"請講出這首歌的歌名", list:true, title:""} : (L => L[Math.floor(Math.random()*L.length)])(cq.songs || SONGS)] : pick1(cq.qs, QS, cq);   // 每題的內容：可由題庫指定，沒有就用占位內容
   let qi = -1, q, phase = "ask", nextAt = 0, endAt = 0, revealAt = 0, kills = 0, qLines = [], got = [], mp = {x:0,y:0,w:0,h:0}, banner = null, rev = false, jumpB, playB, showB, rightP, wrongP, fixB, nextB, endB, snap = null, last = null, resumeAfter = false;
   const pads = [], BOX = [C.cyan,C.violet,C.gold,C.green], tm = qTimer(timeUp), pl = song ? songPlayer() : null;
   const pb = () => song ? [playB] : [];   // 猜歌公布答案、判定、時間到之後都還能繼續聽
@@ -1270,10 +1268,10 @@ function Quiz(kind = "quiz"){
       if(phase === "end" && T >= endAt) result(); },
     draw(){
       const {cx,y,ss} = s.sl, n = RL.length;   // 已收到的禮物：答對的題目會在這裡多一份
-      for(let i=0;i<n;i++){ const x = cx + (i-(n-1)/2)*ss*1.6;
+      for(let i=0;n > 1 && i<n;i++){ const x = cx + (i-(n-1)/2)*ss*1.6;
         if(got[i]) giftBox(x, y+ss*.5, ss, BOX[i%4], C.gold);
         else { g.save(); g.setLineDash([4,4]); g.strokeStyle = i === qi && phase === "ask" ? C.gold : "rgba(255,255,255,.3)"; g.lineWidth = 2; g.strokeRect(x-ss/2, y-ss/2, ss, ss); g.restore(); } }
-      txt(`QUESTION ${Math.min(qi+1,n)} / ${n}`,s.lb.x,s.lb.y,{size:11*u+2,f:DISP,c:C.fg,ls:3,a:.8});
+      if(n > 1) txt(`QUESTION ${Math.min(qi+1,n)} / ${n}`,s.lb.x,s.lb.y,{size:11*u+2,f:DISP,c:C.fg,ls:3,a:.8});
       if(phase !== "end") qLines.forEach((l,i) => txt(l,s.qx,s.qy+i*s.qs*1.35,{size:s.qs,w:900,c:"#fff",stroke:"rgba(0,0,0,.6)",sw:6}));
       if(song){ const on = pl.playing; g.save(); g.fillStyle = rev ? "rgba(20,14,4,.7)" : "rgba(0,0,0,.45)"; g.strokeStyle = rev ? C.gold : C.cyan; g.lineWidth = rev ? 3 : 2; g.beginPath(); g.roundRect(mp.x,mp.y,mp.w,mp.h,10); g.fill(); g.stroke();
         for(let i=0;i<12;i++){ const bh = mp.h*.62*(on ? .15+.85*Math.abs(Math.sin(T*7+i*1.3)) : .06), bx = mp.x+mp.w*.1+i*mp.w*.8/12; g.globalAlpha = rev ? .15 : 1; g.fillStyle = i%2 ? C.cyan : C.gold; g.fillRect(bx,mp.y+mp.h*.8-bh,mp.w*.8/12-4,bh); } g.restore();
@@ -1342,8 +1340,8 @@ function Quiz(kind = "quiz"){
   function timeUp(){ if(phase !== "ask") return; if(pl) pl.pause(); phase = "timeout"; G.combo = 0;
     say("時間到！答題失敗", C.red); if(grid) revealGrid(); else if(!song){ revealAt = T + .6; banner = {text:"時間到！答題失敗", color:C.red}; } setPads(); }
   function finish(){ phase = "end"; endAt = T + .5; }
-  function result(){ finishQuestion({title: kills === RL.length ? "全部答對！" : kills ? "拿到分數了！" : "這題沒有得分", good:kills > 0, color: kills ? C.gold : C.red, score:kills,
-      lines:[`答對 ${kills} / ${RL.length} 題`, ...(G.maxCombo > 1 ? [`最多連續答對 ${G.maxCombo} 題`] : [])]}); }
+  function result(){ finishQuestion({title: kills ? "答對了！" : "這題沒有得分", good:kills > 0, color: kills ? C.gold : C.red, score:kills,
+      lines:[kills ? "答對得 1 分" : "這題 0 分"]}); }
   return s;
 }
 // ===== 場景 5b：排序 / 真假題。每一小題 30 秒；答對一小題 +1 分 =====
@@ -1354,7 +1352,7 @@ const ROUND_DATA = {
 };
 function Round(kind){
   Object.assign(G,{score:0,combo:0,maxCombo:0,hearts:3,showHearts:false});
-  const cq = CUR && CUR.q || {}, RL = cq.rounds || ROUND_DATA[kind], BOX = [C.cyan,C.violet,C.gold,C.green];
+  const cq = CUR && CUR.q || {}, RL = pick1(cq.rounds, ROUND_DATA[kind], cq), BOX = [C.cyan,C.violet,C.gold,C.green];
   let qi = -1, q, phase = "ask", nextAt = 0, endAt = 0, kills = 0, qLines = [], got = [], banner = null, btns = [], cards = [], shown = false, okB, noB, showB, fixB, nextB, gotB, endB, snap = null, last = null, ex = null;
   const tm = qTimer(timeUp);
   const s = {showScore:true, guard:true, noBgm:true, game:true, qbgm:true, pads:[],
@@ -1377,10 +1375,10 @@ function Round(kind){
       if(phase === "end" && T >= endAt) result(); },
     draw(){
       const {cx,y,ss} = s.sl, n = RL.length;
-      for(let i=0;i<n;i++){ const x = cx + (i-(n-1)/2)*ss*1.6;
+      for(let i=0;n > 1 && i<n;i++){ const x = cx + (i-(n-1)/2)*ss*1.6;
         if(got[i]) giftBox(x, y+ss*.5, ss, BOX[i%4], C.gold);
         else { g.save(); g.setLineDash([4,4]); g.strokeStyle = i === qi && phase === "ask" ? C.gold : "rgba(255,255,255,.3)"; g.lineWidth = 2; g.strokeRect(x-ss/2, y-ss/2, ss, ss); g.restore(); } }
-      txt(`QUESTION ${Math.min(qi+1,n)} / ${n}`,s.lb.x,s.lb.y,{size:11*u+2,f:DISP,c:C.fg,ls:3,a:.8});
+      if(n > 1) txt(`QUESTION ${Math.min(qi+1,n)} / ${n}`,s.lb.x,s.lb.y,{size:11*u+2,f:DISP,c:C.fg,ls:3,a:.8});
       if(phase !== "end") qLines.forEach((l,i) => txt(l,s.qx,s.qy+i*s.qs*1.35,{size:s.qs,w:900,c:"#fff",stroke:"rgba(0,0,0,.6)",sw:6}));
       const panel = (x,yy,w,h,fill,stroke) => { g.fillStyle = fill; g.strokeStyle = stroke; g.lineWidth = 3; g.beginPath(); g.roundRect(x-w/2,yy-h/2,w,h,Math.min(14,h*.25)); g.fill(); g.stroke(); };
       if(kind === "sort") cards.forEach(c => { panel(c.x,c.y,c.w,c.h,"#16324f",shown ? C.gold : C.cyan); g.fillStyle = shown ? C.gold : "#4aa3df"; g.beginPath(); g.arc(c.x-c.w/2+c.h*.5,c.y,c.h*.3,0,7); g.fill();
@@ -1418,8 +1416,8 @@ function Round(kind){
     else { shown = true; banner = {text:"時間到！答題失敗", sub:`正確順序：${sortOrder()}`, color:C.red}; }
     setPads(); s.layout(); }
   function finish(){ phase = "end"; endAt = T + .5; }
-  function result(){ finishQuestion({title: kills === RL.length ? "全部答對！" : kills ? "拿到分數了！" : "這題沒有得分", good:kills > 0, color: kills ? C.gold : C.red, score:kills,
-      lines:[`答對 ${kills} / ${RL.length} 題`, ...(G.maxCombo > 1 ? [`最多連續答對 ${G.maxCombo} 題`] : [])]}); }
+  function result(){ finishQuestion({title: kills ? "答對了！" : "這題沒有得分", good:kills > 0, color: kills ? C.gold : C.red, score:kills,
+      lines:[kills ? "答對得 1 分" : "這題 0 分"]}); }
   return s;
 }
 // ===== 場景 6：節奏遊戲 =====
@@ -1666,7 +1664,7 @@ function demoDraw(type,d){
 const BOX_COLORS = ["#5fd0ff","#8b7bff","#D9B26A","#35c98a"];
 function Brief(q, resume, preview){
   let starting = false;
-  const c = CATS[q.cat], team = curTeam(), rules = OT ? [`加賽：${otVs()}`, ...RULES.buzz, `每一小題限時 ${QTIME} 秒`] : [preview ? "預覽模式：不會計分，也不影響比賽" : `挑戰隊伍：${team.name}`, ...(resume ? ["上次在這題中斷，按 START 重新開始這題"] : []), ...RULES[q.type], q.type === "rhythm" ? "完成挑戰得 1 分" : `每一小題限時 ${QTIME} 秒，答對一題得 1 分`].concat(q.placeholder ? ["（占位題目，正式題目待提供）"] : []);
+  const c = CATS[q.cat], team = curTeam(), rules = OT ? [`加賽：${otVs()}`, ...RULES.buzz, `每題限時 ${QTIME} 秒`] : [preview ? "預覽模式：不會計分，也不影響比賽" : `挑戰隊伍：${team.name}`, ...(resume ? ["上次在這題中斷，按 START 重新開始這題"] : []), ...RULES[q.type], q.type === "rhythm" ? "完成挑戰得 1 分" : `限時 ${QTIME} 秒，答對得 1 分`].concat(q.placeholder ? ["（占位題目，正式題目待提供）"] : []);
   const lines = q.intro || INTRO[q.type], big = `${q.title}！`, next = OT ? () => OTBuzz(q) : q.type === "rhythm" ? () => Rhythm() : ["quiz","song","grid"].includes(q.type) ? () => Quiz(q.type) : () => Round(q.type);
   const start = new Pad({r:80,pill:[1.3,.56],color:c.color === "#003255" ? "#4aa3df" : c.color,custom:(x,y,r) => txt("START",x,y,{size:r*.3,f:DISP,w:900,c:"#fff",ls:2,stroke:"rgba(0,0,0,.3)",sw:3})}), back = backPad();
   return {pads: OT ? [start] : [start,back], muffle:true,
@@ -1748,7 +1746,7 @@ function OTPick(){
   const hexes = CATS.map((c,k) => new Pad({shape:"hex",color:c.color,label:c.name,icon:c.icon,iconFn:c.logo ? pinkoiLogo : null,glowColor:c.glowColor,keepColor:!!c.logo,inert:true,cid:k}));
   const order = []; let k = Math.floor(Math.random()*cs.length); for(let i=0;i<14;i++) order.push(cs[(k+i) % cs.length]); k += 14; while(order[order.length-1] !== pick) order.push(cs[(k++) % cs.length]);   // 跑燈順序，最後一格停在抽中的分類
   let t0 = 0, i = 0, nextT = 0, gap = .07, cur = -1, doneAt = 0, gone = false;
-  const leave = () => { if(gone) return; gone = true; const pool = otPool(pick); go(() => Draw(pick, pool.length ? pool : [{id:"ot-"+pick, cat:pick, title:`${CATS[pick].name}搶答`, type:"buzz", rounds:BUZZ0, placeholder:true}])); };
+  const leave = () => { if(gone) return; gone = true; const pool = otPool(pick); go(() => Draw(pick, pool.length ? pool : [{id:"ot-"+pick, cat:pick, title:`${CATS[pick].name}搶答`, type:"buzz", rounds:[BUZZ0[Math.floor(Math.random()*BUZZ0.length)]], placeholder:true}])); };
   return {noBgm:true, pads:hexes,
     layout(){ const pt = W < H, cols = pt ? 2 : 3, rows = pt ? 3 : 2, top = hdrBottom(hdrSz()) + 40, bot = H - insB - labSz()*1.9 - 16, r = Math.min((W-32)/((cols-1)*1.95+1.73), (bot-top)/((rows-1)*2.1+2.35), 110*u);
       hexes.forEach((p,j) => { const c = j%cols, rw = Math.floor(j/cols); p.r = r; p.x = W/2 + (c-(cols-1)/2)*r*1.95; p.y = (top+bot)/2 + (rw-(rows-1)/2)*r*2.1; }); },
@@ -1764,7 +1762,7 @@ function OTPick(){
       txt(`${CATS[cur].name}！`, W/2, H - insB - size*.95 - 8, {size, w:900, c:C.gold, sc:1 + 2*(1-easeOut(clamp(a2/.3,0,1))), stroke:"#05101f", sw:size*.16, shadow:"#ff2d55", so:size*.07}); } }; }
 function OTBuzz(entry){
   if(!OT.used.includes(entry.id)) OT.used.push(entry.id);
-  const ids = OT.ids, RL = shuf((entry.rounds || BUZZ0).map(r => ({...r}))), c = CATS[entry.cat] || CATS[0];
+  const ids = OT.ids, RL = pick1(entry.rounds, BUZZ0, entry).map(r => ({...r})), c = CATS[entry.cat] || CATS[0];
   let qi = -1, q, phase = "ask", who = -1, out = [], banner = null, qLines = [], teamB = [], okB, noB, endB, winB, moreB, ansAt = 0;   // ansAt：公布答案的時間（0 = 還沒公布）
   const tm = qTimer(timeUp), TC = ["#e0334b","#ff8a3d","#8b7bff","#4aa3df","#35c98a","#D9B26A"];
   const s = {noBgm:true, guard:true, pads:[],
@@ -1785,7 +1783,7 @@ function OTBuzz(entry){
     update(){ tm.step(); },
     draw(){
       eyebrow(`${c.en}・SUDDEN DEATH`, eyY()); txt(otVs(), W/2, eyY() + 40*u + 6, {size:Math.max(16,24*u+4), w:900, c:C.gold, maxW:W-32-2*(48*u+30), glow:12, gc:"#ff2d3d"});
-      if(q && phase !== "out"){ txt(`${entry.title}・第 ${qi+1} / ${RL.length} 題`, W/2, s.qy - s.qs*1.1, {size:Math.max(12,13*u+2), w:700, c:"#ffb0b0", ls:2});
+      if(q && phase !== "out"){ txt(`${entry.title}`, W/2, s.qy - s.qs*1.1, {size:Math.max(12,13*u+2), w:700, c:"#ffb0b0", ls:2});
         qLines.forEach((l,i) => txt(l, W/2, s.qy + i*s.qs*1.35, {size:s.qs, w:900, c:"#fff", stroke:"rgba(0,0,0,.7)", sw:7})); }
       if(phase === "ask" && !banner) txt("先舉手的隊伍，請主持人點選", W/2, s.bnY, {size:Math.max(15,18*u+2), w:700, c:"#ffd0d0", a:.6 + pulse*.4});
       if(banner){ txt(banner.text, W/2, s.bnY, {size:Math.max(22,32*u+6), w:900, c:banner.color, stroke:"rgba(0,0,0,.8)", sw:8, maxW:W-32});
@@ -1797,7 +1795,7 @@ function OTBuzz(entry){
   function ask(){ qi++; q = RL[qi]; phase = "ask"; who = -1; out = []; banner = null; ansAt = 0;
     teamB = ids.map((ti,k) => miniPad(S.teams[ti].name, TC[k % TC.length])); okB = miniPad("答對",C.green); noB = miniPad("答錯",C.coral); endB = miniPad("答題結束","#5b6b7c");
     s.pads = teamB; s.layout(); tm.start(); SFX.boom(); }
-  function soldOut(){ phase = "out"; banner = {text:"這一組題目出完了，還沒分出勝負", color:"#ffd0d0"}; moreB = miniPad("再抽一組",C.coral); s.pads = [moreB]; s.layout(); }
+  function soldOut(){ phase = "out"; banner = {text:"這一題沒有隊伍答對，還沒分出勝負", color:"#ffd0d0"}; moreB = miniPad("再抽一題",C.coral); s.pads = [moreB]; s.layout(); }
   function win(){ tm.stop(); const t = S.teams[who]; t.score += 1; S.log.push({run:S.run, team:t.id, q:"加賽", score:1}); save();
     phase = "won"; banner = {text:`【${t.name}】勝出！`, color:C.gold}; ansAt = T; winB = miniPad("最終結算",C.gold); s.pads = [winB]; s.layout();
     SFX.win(); shake = 18; for(let k=0;k<6;k++) setTimeout(() => burst(W*(.15+Math.random()*.7),H*.3,60,[C.gold,"#fff","#ff2d3d"],11,1.6,.2), k*180); }
