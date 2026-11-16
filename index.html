@@ -192,7 +192,7 @@ html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;backgrou
   <div style="margin:12px 0 6px;display:grid;gap:6px"><label for="bkSong" style="font-weight:900">猜歌歌單（所有猜歌題都從這裡隨機抽歌）</label><div style="display:flex;gap:8px"><input id="bkSong" placeholder="貼上 YouTube 播放清單網址，例如 https://www.youtube.com/playlist?list=PL…" style="flex:1;min-width:0;font:inherit;padding:9px 11px;border-radius:8px;border:2px solid #2f4f6e;background:#06142a;color:#fff"><button class="ghost" id="bkSongSave">儲存歌單</button></div><small id="bkSongMsg" style="color:#9fb3c8;line-height:1.6">沒填時，每題猜歌用題目裡自己填的歌。建議用自己建立的播放清單（網址有 list=PL…）；YouTube 自動產生的合輯（list=RD…）每次內容可能不一樣。</small><details id="bkSongList" hidden style="border:0;background:none;margin:2px 0 0;border-radius:0"><summary style="display:block;grid-template-columns:none;padding:4px 0;cursor:pointer;color:#bfe8ff;font-size:14px">▸ 查看歌單裡有哪些歌<span id="bkSongN"></span></summary><ol id="bkSongOl" style="max-height:320px;overflow:auto;margin:8px 0;padding-left:28px;line-height:1.7;color:#cdd6e0;font-size:14px"></ol></details></div>
   <p class="lockmsg" id="bkLock"></p><p class="okmsg" id="bkMsg"></p>
   <div id="bkTabs"></div><div class="hd"><span></span><span>分類</span><span>題型</span><span>題名</span><span style="text-align:right">題數</span><span></span></div><div id="bkList"></div>
-  <h2>題型說明：每種題型要填哪些資料</h2><p class="tip">新增或編輯題目時對照用。用試算表出題的話，每一列是一個小題，分類和題名相同的列會合成同一題。</p><div id="bkTypes"></div>
+  <h2>題型說明：每種題型要填哪些資料</h2><p class="tip">新增或編輯題目時對照用。用試算表出題的話：一題的第一列填分類、題名、題型，下面的小題把這三格留空，就會歸到同一題；「小題」欄寫 1、2、3 方便對照。</p><div id="bkTypes"></div>
   <div class="act"><button class="ghost" id="bkClose" style="font:inherit;cursor:pointer;padding:10px 22px;border-radius:12px;font-weight:900;border:2px solid #5b6b7c;background:transparent;color:#cdd6e0">關閉</button></div>
 </div></div>
 <div id="bkEdit" hidden role="dialog" aria-label="編輯題目"><div class="in"><div class="eb">EDIT</div><h1 id="edTitle">編輯題目</h1><div id="edBody"></div><div class="foot"><div class="err" id="edMsg"></div><div class="act"><button class="ghost" id="edCancel">取消</button><button class="go" id="edSave">儲存</button></div></div></div></div>
@@ -840,13 +840,13 @@ const TYPE_INFO = {
 };
 // 題型說明卡片的內容：在編輯畫面要填什麼、在試算表要填哪幾欄（給主持人看，不放程式格式）
 const TYPE_HELP = {
-  quiz:{edit:["<b>題目</b>","<b>四個選項</b>，圓點選起來的是正確答案"], csv:"題目欄、選項1～4、答案填 A～D"},
-  song:{edit:["<b>歌名</b>（就是答案）","<b>YouTube 網址</b>，或改上傳音檔","也可以不一首一首填：在上方「猜歌歌單」貼一個播放清單，所有猜歌題都從裡面抽"], csv:"答案填歌名、YouTube 欄填網址（題目欄可以空白）"},
-  grid:{edit:["<b>題目</b>，例如「戴眼鏡」的有幾個人？","<b>9 張照片</b>，沒上傳就用卡通臉","<b>勾選符合條件的人</b>，答案人數會自動算出來"], csv:"題目欄、答案填符合條件的格子編號，例如 2,5,9（照片要到編輯畫面上傳）"},
-  sort:{edit:["<b>題目</b>，例如：請由早到晚排序","<b>2～5 個項目</b>，照正確順序一行寫一個，畫面會自動打亂"], csv:"題目欄、選項1～5 照正確順序填"},
-  tf:{edit:["<b>一句話</b>","這句話是<b>真</b>還是<b>假</b>","<b>答案說明</b>，答完會跳出來"], csv:"題目欄、答案填 真 或 假、說明欄"},
+  quiz:{edit:["<b>題目</b>","<b>四個選項</b>，圓點選起來的是正確答案"], csv:"題目內容欄、選項1～4、答案填 A～D"},
+  song:{edit:["<b>歌名</b>（就是答案）","<b>YouTube 網址</b>，或改上傳音檔","也可以不一首一首填：在上方「猜歌歌單」貼一個播放清單，所有猜歌題都從裡面抽"], csv:"答案填歌名、YouTube 欄填網址（題目內容欄可以空白）"},
+  grid:{edit:["<b>題目</b>，例如「戴眼鏡」的有幾個人？","<b>9 張照片</b>，沒上傳就用卡通臉","<b>勾選符合條件的人</b>，答案人數會自動算出來"], csv:"題目內容欄、答案填符合條件的格子編號，例如 2,5,9（照片要到編輯畫面上傳）"},
+  sort:{edit:["<b>題目</b>，例如：請由早到晚排序","<b>2～5 個項目</b>，照正確順序一行寫一個，畫面會自動打亂"], csv:"題目內容欄、選項1～5 照正確順序填"},
+  tf:{edit:["<b>一句話</b>","這句話是<b>真</b>還是<b>假</b>","<b>答案說明</b>，答完會跳出來"], csv:"題目內容欄、答案填 真 或 假、說明欄"},
   rhythm:{edit:["<b>至少 4 張圖片</b>，不上傳就用內建圖","不用填題目，跟著節拍念出亮起的圖"], csv:"只要填分類、題名、題型（圖片要到編輯畫面上傳）"},
-  buzz:{edit:["<b>題目</b>，主持人會念出來","<b>答案</b>，答對、全部答錯或時間到才會公布"], csv:"題目欄、答案欄"},
+  buzz:{edit:["<b>題目</b>，主持人會念出來","<b>答案</b>，答對、全部答錯或時間到才會公布"], csv:"題目內容欄、答案欄"},
 };
 const esc = v => String(v).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const introOf = q => ({lines: q.intro || INTRO[q.type], big: `${q.title}！`, own: !!q.intro});
@@ -1005,7 +1005,7 @@ async function loadBankFile(){ bankFilePush.on = true;
     await applyBank(o); try{ localStorage.setItem(BANK_KEY, JSON.stringify(BANK)); }catch(e){}
     if(scene && scene.home && !trans) setScene(Home()); }catch(e){ console.error(e); } }
 // ===== 試算表（CSV）：題庫和 Google 試算表互轉。一列是一個小題，分類＋題名相同的列合成同一題 =====
-const CSV_HEAD = ["分類","題名","題型","題目","答案","選項1","選項2","選項3","選項4","選項5","說明","開場字幕","YouTube"];
+const CSV_HEAD = ["分類","題名","題型","小題","題目內容","答案","選項1","選項2","選項3","選項4","選項5","說明","開場字幕","YouTube"];
 const TYPE_CSV = {quiz:"選擇題", song:"猜歌", grid:"九宮格", sort:"排序", tf:"真假", rhythm:"節奏", buzz:"搶答"};
 const csvCell = v => /[",\r\n]/.test(v = String(v ?? "")) ? `"${v.replace(/"/g,'""')}"` : v;
 const toCSV = rows => "﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n");   // 開頭的 BOM 讓 Excel 用 UTF-8 開，中文才不會變亂碼
@@ -1024,19 +1024,22 @@ function bankToCSV(){ const rows = [CSV_HEAD];
       else if(t === "song"){ qq = r.q; ans = r.title; yt = r.yt || ""; }
       else if(t === "buzz"){ qq = r.q; ans = r.answer; }
       else if(t === "grid"){ qq = r.q; ans = r.targets.map(x => x+1).join(","); }
-      rows.push([...base, qq, ans, ...o, note, i ? "" : intro, yt]); }); });
+      rows.push([...(i ? ["","",""] : base), t === "rhythm" ? "" : i+1, qq, ans, ...o, note, i ? "" : intro, yt]); }); });   // 分組寫法：一題只在第一列寫分類、題名、題型，下面的小題這三格留空
   return toCSV(rows); }
 function csvToBank(text){ const rows = parseCSV(text), head = (rows.shift() || []).map(h => h.trim()), col = n => head.indexOf(n), errs = [], out = [], byKey = new Map(), TY = {};
   if(["分類","題名","題型"].some(n => col(n) < 0)) throw new Error("第一列要是標題列：" + CSV_HEAD.join("、"));
   Object.keys(TYPE_INFO).forEach(k => [k, TYPE_CSV[k], TYPE_INFO[k].name, TYPE_INFO[k].name.replace(/（.*）/,"")].forEach(n => TY[n.toLowerCase()] = k));
-  rows.forEach((r,ri) => { const g = n => col(n) < 0 ? "" : (r[col(n)] ?? "").trim(), at = `第 ${ri+2} 列：`, title = g("題名"), t = TY[g("題型").toLowerCase()], cat = CATS.findIndex(c => c.name.toLowerCase() === g("分類").toLowerCase());
+  let prev = null;   // 分類、題名、題型三格都空白的列，屬於上面那一題（舊的每列都寫滿的格式也照樣讀得懂）
+  rows.forEach((r,ri) => { const raw = n => col(n) < 0 ? "" : (r[col(n)] ?? "").trim(), up3 = ["分類","題名","題型"], inherit = prev && up3.every(n => !raw(n));
+    const g = n => inherit && up3.includes(n) ? prev[n] : raw(n), at = `第 ${ri+2} 列：`, title = g("題名"), t = TY[g("題型").toLowerCase()], cat = CATS.findIndex(c => c.name.toLowerCase() === g("分類").toLowerCase());
     if(cat < 0) return errs.push(at + `分類「${g("分類")}」不存在，只能填 ${CATS.map(c => c.name).join("、")}`);
     if(!t) return errs.push(at + `題型「${g("題型")}」不存在，只能填 ${Object.values(TYPE_CSV).join("、")}`);
     if(!title) return errs.push(at + "題名不能空白");
+    prev = {分類:g("分類"), 題名:title, 題型:g("題型")};
     let n = byKey.get(cat + "\n" + title); if(!n){ n = {cat, title, type:t, rows:[]}; byKey.set(cat + "\n" + title, n); out.push(n); } else if(n.type !== t) return errs.push(at + `同一題「${title}」的每一列題型要一樣`);
     if(!n.intro && g("開場字幕")) n.intro = g("開場字幕").split(/\s*[|｜]\s*/);
     if(t === "rhythm") return;
-    const o = [1,2,3,4,5].map(i => g("選項"+i)).filter(Boolean), qq = g("題目"), ans = g("答案"), up = ans.toUpperCase(); let x;
+    const o = [1,2,3,4,5].map(i => g("選項"+i)).filter(Boolean), qq = g("題目內容") || g("題目"), ans = g("答案"), up = ans.toUpperCase(); let x;
     if(!qq && t !== "song") return errs.push(at + "題目不能空白");
     if(t === "quiz"){ const a = "ABCD".includes(up) && up ? "ABCD".indexOf(up) : +ans - 1; if(o.length !== 4) return errs.push(at + "選擇題要剛好 4 個選項（選項1～4）"); if(!(a >= 0 && a < 4)) return errs.push(at + "選擇題的答案要填 A、B、C 或 D"); x = {q:qq, o, a}; }
     else if(t === "tf"){ const a = ["真","O","○","TRUE","是","對"].includes(up) ? true : ["假","X","✗","×","FALSE","否","錯"].includes(up) ? false : null; if(a === null) return errs.push(at + "真假題的答案要填「真」或「假」"); x = {q:qq, a, note:g("說明")}; }
