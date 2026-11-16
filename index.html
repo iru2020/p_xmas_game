@@ -48,6 +48,15 @@ html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;backgrou
 /* ===== 手機連線 QR code ===== */
 /* 猜歌用的 YouTube 播放器：只用它的聲音，畫面不顯示（會露出歌名） */
 #ytBox{position:fixed;left:0;bottom:0;width:200px;height:200px;opacity:0;pointer-events:none;z-index:-1}
+/* 題型說明：卡片，寬螢幕兩欄、窄螢幕一欄 */
+#bkTypes{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:12px}
+#bkTypes .tc{border:1px solid #2f4f6e;border-radius:12px;background:#0a1b2e;padding:14px 16px;display:grid;gap:8px;align-content:start}
+#bkTypes .th{display:flex;align-items:center;gap:8px;flex-wrap:wrap}#bkTypes .th b{font-size:17px;font-weight:900}
+#bkTypes .th .n{margin-left:auto}#bkTypes .th .n.on{background:#14385c;color:#bfe8ff}
+#bkTypes .ds{margin:0;font-size:14px;line-height:1.6;color:#dfe7ef}
+#bkTypes h4{margin:2px 0 0;font-size:12.5px;font-weight:700;color:#9fb3c8;letter-spacing:.05em}
+#bkTypes ul{margin:0;padding-left:20px;font-size:13.5px;line-height:1.7;color:#cdd6e0}#bkTypes li b{color:#fff}
+#bkTypes .csv{margin:0;padding:8px 10px;border-radius:8px;background:#06142a;border:1px solid #2f4f6e;font-size:13px;line-height:1.7;color:#bfe8ff}
 /* ===== 設定頁 ===== */
 #cfg{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:rgba(4,10,22,.86);overflow:auto;color:#f4f1ea;font-family:"Noto Sans TC",sans-serif}
 #cfg[hidden]{display:none}
@@ -179,7 +188,7 @@ html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;backgrou
   <div style="margin:12px 0 6px;display:grid;gap:6px"><label for="bkSong" style="font-weight:900">猜歌歌單（所有猜歌題都從這裡隨機抽歌）</label><div style="display:flex;gap:8px"><input id="bkSong" placeholder="貼上 YouTube 播放清單網址，例如 https://www.youtube.com/playlist?list=PL…" style="flex:1;min-width:0;font:inherit;padding:9px 11px;border-radius:8px;border:2px solid #2f4f6e;background:#06142a;color:#fff"><button class="ghost" id="bkSongSave">儲存歌單</button></div><small id="bkSongMsg" style="color:#9fb3c8;line-height:1.6">沒填時，每題猜歌用題目裡自己填的歌。建議用自己建立的播放清單（網址有 list=PL…）；YouTube 自動產生的合輯（list=RD…）每次內容可能不一樣。</small><details id="bkSongList" hidden style="border:0;background:none;margin:2px 0 0;border-radius:0"><summary style="display:block;grid-template-columns:none;padding:4px 0;cursor:pointer;color:#bfe8ff;font-size:14px">▸ 查看歌單裡有哪些歌<span id="bkSongN"></span></summary><ol id="bkSongOl" style="max-height:320px;overflow:auto;margin:8px 0;padding-left:28px;line-height:1.7;color:#cdd6e0;font-size:14px"></ol></details></div>
   <p class="lockmsg" id="bkLock"></p><p class="okmsg" id="bkMsg"></p>
   <div id="bkTabs"></div><div class="hd"><span></span><span>分類</span><span>題型</span><span>題名</span><span style="text-align:right">題數</span><span></span></div><div id="bkList"></div>
-  <h2>題型說明：每種題型要填哪些資料</h2><div id="bkTypes"></div>
+  <h2>題型說明：每種題型要填哪些資料</h2><p class="tip">新增或編輯題目時對照用。用試算表出題的話，每一列是一個小題，分類和題名相同的列會合成同一題。</p><div id="bkTypes"></div>
   <div class="act"><button class="ghost" id="bkClose" style="font:inherit;cursor:pointer;padding:10px 22px;border-radius:12px;font-weight:900;border:2px solid #5b6b7c;background:transparent;color:#cdd6e0">關閉</button></div>
 </div></div>
 <div id="bkEdit" hidden role="dialog" aria-label="編輯題目"><div class="in"><div class="eb">EDIT</div><h1 id="edTitle">編輯題目</h1><div id="edBody"></div><div class="foot"><div class="err" id="edMsg"></div><div class="act"><button class="ghost" id="edCancel">取消</button><button class="go" id="edSave">儲存</button></div></div></div></div>
@@ -824,6 +833,16 @@ const TYPE_INFO = {
   rhythm:{name:"節奏遊戲", desc:"跟著節拍念出亮起的圖片，共 5 run，不用作答，結束後主持人按完成或未完成。", sample:'{type:"rhythm"}  // 圖片在檔案開頭的 PHOTO_SRC，至少 4 張'},
   buzz:{name:"搶答題（加賽用）", desc:"只在最高分同分的加賽出現，不會出現在首頁抽題。加賽時會先隨機抽分類，再從那個分類的搶答題抽一組。主持人念題，點先舉手的隊伍，再判定對錯。", sample:'{type:"buzz", rounds:[\n  {q:"題目", answer:"答案"}\n]}'},
 };
+// 題型說明卡片的內容：在編輯畫面要填什麼、在試算表要填哪幾欄（給主持人看，不放程式格式）
+const TYPE_HELP = {
+  quiz:{edit:["<b>題目</b>","<b>四個選項</b>，圓點選起來的是正確答案"], csv:"題目欄、選項1～4、答案填 A～D"},
+  song:{edit:["<b>歌名</b>（就是答案）","<b>YouTube 網址</b>，或改上傳音檔","也可以不一首一首填：在上方「猜歌歌單」貼一個播放清單，所有猜歌題都從裡面抽"], csv:"答案填歌名、YouTube 欄填網址（題目欄可以空白）"},
+  grid:{edit:["<b>題目</b>，例如「戴眼鏡」的有幾個人？","<b>9 張照片</b>，沒上傳就用卡通臉","<b>勾選符合條件的人</b>，答案人數會自動算出來"], csv:"題目欄、答案填符合條件的格子編號，例如 2,5,9（照片要到編輯畫面上傳）"},
+  sort:{edit:["<b>題目</b>，例如：請由早到晚排序","<b>2～5 個項目</b>，照正確順序一行寫一個，畫面會自動打亂"], csv:"題目欄、選項1～5 照正確順序填"},
+  tf:{edit:["<b>一句話</b>","這句話是<b>真</b>還是<b>假</b>","<b>答案說明</b>，答完會跳出來"], csv:"題目欄、答案填 真 或 假、說明欄"},
+  rhythm:{edit:["<b>至少 4 張圖片</b>，不上傳就用內建圖","不用填題目，跟著節拍念出亮起的圖"], csv:"只要填分類、題名、題型（圖片要到編輯畫面上傳）"},
+  buzz:{edit:["<b>題目</b>，主持人會念出來","<b>答案</b>，答對、全部答錯或時間到才會公布"], csv:"題目欄、答案欄"},
+};
 const esc = v => String(v).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const introOf = q => ({lines: q.intro || INTRO[q.type], big: `${q.title}！`, own: !!q.intro});
 function bankRounds(q){   // 這一題實際會用到的內容（沒指定就是占位內容）
@@ -849,7 +868,9 @@ function renderBank(){
       <div class="btns"><button class="go" data-id="${q.id}" data-do="prev" ${q.type === "buzz" ? "disabled title=\"搶答題只在加賽出現\"" : canPlay ? "" : "disabled title=\"請先完成分隊設定\""}>預覽玩一次</button><button class="ghost sm" data-id="${q.id}" data-do="edit" ${ce ? "" : "disabled"}>編輯</button><button class="ghost sm" data-id="${q.id}" data-do="dup" ${ce ? "" : "disabled"}>複製</button><button class="ghost sm" data-id="${q.id}" data-do="del" ${ce ? "" : "disabled"}>刪除</button></div></details>`; }).join("");
   $("#bkLock").textContent = ce ? "" : "比賽進行中，題庫已鎖住（只能看與預覽）。回到首頁才能編輯、新增、刪除。";
   ["bkAdd","bkImport","bkCsvIn","bkReset","bkSongSave"].forEach(id => $("#"+id).disabled = !ce);
-  $("#bkTypes").innerHTML = Object.entries(TYPE_INFO).map(([k,t]) => `<details><summary><b>${esc(t.name)}</b><span class="ty">${k}</span><span class="n">${BANK.filter(q => q.type === k).length} 題使用</span></summary><p>${esc(t.desc)}</p><p class="lb">新增這種題目時要填的資料：</p><pre>${esc(t.sample)}</pre></details>`).join("");
+  $("#bkTypes").innerHTML = Object.entries(TYPE_INFO).map(([k,t]) => { const n = BANK.filter(q => q.type === k).length, h = TYPE_HELP[k] || {edit:[], csv:""};
+    return `<div class="tc"><div class="th"><b>${esc(t.name)}</b><span class="ty">${TYPE_CSV[k]}</span><span class="n ${n ? "on" : ""}">${n} 題使用</span></div><p class="ds">${esc(t.desc)}</p>
+      <h4>在「編輯」畫面要填</h4><ul>${h.edit.map(x => `<li>${x}</li>`).join("")}</ul><h4>在試算表要填（題型欄寫「${TYPE_CSV[k]}」）</h4><p class="csv">${h.csv}</p></div>`; }).join("");
 }
 function openBank(){ $("#cfg").hidden = true; renderBank(); $("#bank").hidden = false; }
 function closeBank(){ $("#bank").hidden = true; cv.focus({preventScroll:true}); if(bankDirty){ bankDirty = false; if(S.phase === "play" && scene && scene.calm) setScene(Home()); } }   // 題庫有改動時，把首頁重建一次，數量才會更新
