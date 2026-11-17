@@ -287,12 +287,13 @@ async function preloadMedia(q){   // 進入遊戲前先把這題用到的圖片�
 const RULES = {quiz:["看清楚題目","選一個禮物盒拆開","答對拆到獎品，答錯是空盒"],
                song:["從歌曲中間隨機一段開始播放","聽出來就大聲說出歌名","主持人按「公布答案」後，再判定答對或答錯"],
                grid:["九宮格裡是一群長得很像的人","數一數符合題目條件的有幾個人","用說的回答，主持人按「公布答案」後，再判定答對或答錯"],
+               gridName:["九宮格裡有 9 張圖","說出每張圖分別是誰","用說的回答，主持人按「公布答案」後，每張圖下面會出現答案，再判定答對或答錯"],
                sort:["畫面上有幾個項目，順序是亂的","隊伍用說的講出正確順序","主持人公布答案後判定答對或答錯"],
                tf:["畫面上有一句話","判斷這句話是真的還是假的","點選「真」或「假」，馬上公布答案"],
                rhythm:["共 5 run，每 run 先預備 8 拍","再 8 拍依序亮起，拿起麥克風跟著念出每張圖","結束後由主持人判定有沒有完成"],
                buzz:["主持人念題，先舉手的隊伍回答","主持人判定對錯，答錯的隊伍這題不能再搶","先答對的隊伍勝出"]};
 // 日系開場的三句描述：題目有 intro 就用題目的，否則用玩法的預設
-const INTRO = {quiz:["選擇題登場！","仔細看題目！","選一個禮物盒！"], song:["聽歌猜歌名！","耳朵打開！","大聲說出來！"], grid:["九宮格數人頭！","眼睛睜大！","數清楚幾個人！"], sort:["順序大挑戰！","腦袋轉一轉！","排出正確順序！"], tf:["真假大考驗！","是真的還是假的？","憑直覺選！"], rhythm:["跟著節拍！","念出亮起的圖！","5 run 不停歇！"], buzz:["加賽！","搶答決勝負！","先答對就贏！"]};
+const INTRO = {quiz:["選擇題登場！","仔細看題目！","選一個禮物盒！"], song:["聽歌猜歌名！","耳朵打開！","大聲說出來！"], grid:["九宮格數人頭！","眼睛睜大！","數清楚幾個人！"], gridName:["九宮格猜猜看！","眼睛睜大！","說出每張是誰！"], sort:["順序大挑戰！","腦袋轉一轉！","排出正確順序！"], tf:["真假大考驗！","是真的還是假的？","憑直覺選！"], rhythm:["跟著節拍！","念出亮起的圖！","5 run 不停歇！"], buzz:["加賽！","搶答決勝負！","先答對就贏！"]};
 // 每一題各自指定題型 type：quiz 影片選擇題 / rhythm 節奏 / song 猜歌 / grid 九宮格找人 / sort 排序 / match 配對 / reveal 看圖猜詞 / tf 真假題。題型和六大類無關，同一類可以混用
 const BANK0 = [
   [0,"腦筋急轉彎","quiz"],[0,"冷知識","tf"],[0,"猜人臉","grid"],
@@ -854,7 +855,7 @@ function drawFace(x,y,s,c){
 const TYPE_INFO = {
   quiz:{name:"選擇題（拆禮物）", desc:"畫面出一個題目和四個選項（四個禮物盒），選一個拆開，答對拆到獎品。系統自動判定。", sample:'{type:"quiz", qs:[\n  {q:"題目", o:["選項A","選項B","選項C","選項D"], a:0}\n]}  // a 是正確選項的編號，0 是第一個'},
   song:{name:"猜歌", desc:"一題只猜一首：這題有指定歌就播那首，沒指定就從猜歌歌單抽。從歌曲中間隨機一段開始播，答題者用講的，主持人判定。可以暫停、換段落、點時間軸跳到別的位置。", sample:'{type:"song", songs:[\n  {q:"請講出這首歌的歌名", title:"歌名", yt:"YouTube 網址"}\n]}  // 沒有 YouTube 網址時可以改上傳音檔'},
-  grid:{name:"九宮格數人數", desc:"九張很像的臉，題目問符合條件的有幾個人。隊伍用講的，主持人判定，公布時會標出是哪幾個人。", sample:'{type:"grid", rounds:[\n  {q:"「戴眼鏡」的有幾個人？", targets:[1,4], cells:[{img:圖片}, …共 9 張]}\n]}  // targets 是符合條件的格子編號（0 到 8），答案人數就是它的數量'},
+  grid:{name:"九宮格", desc:"九張圖，有兩種玩法：數一數符合條件的有幾個（公布時用綠框標出是哪幾個），或說出每張圖分別是誰（公布時每張圖下面顯示答案）。隊伍用講的，主持人判定。", sample:'{type:"grid", rounds:[\n  {q:"「戴眼鏡」的有幾個人？", targets:[1,4], cells:[{img:圖片}, …共 9 張]}\n]}  // targets 是符合條件的格子編號（0 到 8），答案人數就是它的數量'},
   sort:{name:"排序", desc:"畫面給亂序的項目，隊伍口頭講順序，主持人公布正確順序後判定，可以更正。", sample:'{type:"sort", rounds:[\n  {q:"請由早到晚排序", items:["最早","第二","第三","最晚"]}\n]}  // items 要照正確順序寫，畫面會自動打亂'},
   tf:{name:"真假題", desc:"一句話，點「真」或「假」，馬上公布答案與說明。系統自動判定。", sample:'{type:"tf", rounds:[\n  {q:"陳述句", a:true, note:"答案公布後顯示的說明"}\n]}  // a 是 true 代表這句話是真的'},
   rhythm:{name:"節奏遊戲", desc:"跟著節拍念出亮起的圖片，共 5 run，不用作答，結束後主持人按完成或未完成。", sample:'{type:"rhythm"}  // 圖片在檔案開頭的 PHOTO_SRC，至少 4 張'},
@@ -864,19 +865,20 @@ const TYPE_INFO = {
 const TYPE_HELP = {
   quiz:{edit:["<b>題目</b>","<b>四個選項</b>，圓點選起來的是正確答案"], csv:"題目內容欄、選項1～4、答案填 A～D"},
   song:{edit:["<b>歌名</b>（就是答案）","<b>YouTube 網址</b>，或改上傳音檔","也可以不指定歌：在上方「猜歌歌單」貼一個播放清單，沒有指定歌的猜歌題都從裡面抽"], csv:"答案填歌名、YouTube 欄填網址（題目內容欄可以空白）。答案和 YouTube 都空白就從猜歌歌單抽"},
-  grid:{edit:["<b>題目</b>，例如「戴眼鏡」的有幾個人？","<b>9 張照片</b>，沒上傳就用卡通臉","<b>勾選符合條件的人</b>，答案人數會自動算出來"], csv:"題目內容欄、答案填符合條件的格子編號，例如 2,5,9（照片要到編輯畫面上傳）"},
+  grid:{edit:["<b>題目</b>，例如「戴眼鏡」的有幾個人？","<b>9 張照片</b>，沒上傳就用卡通臉","<b>勾選符合條件的人</b>，答案人數會自動算出來"], csv:"題目內容欄、答案填符合條件的格子編號，例如 2,5,9。要玩「說出每張是誰」的話，答案欄改成每格的答案，一行一個共 9 行（照片要用出題表單上傳）"},
   sort:{edit:["<b>題目</b>，例如：請由早到晚排序","<b>2～5 個項目</b>，照正確順序一行寫一個，畫面會自動打亂"], csv:"題目內容欄、選項1～5 照正確順序填"},
   tf:{edit:["<b>一句話</b>","這句話是<b>真</b>還是<b>假</b>","<b>答案說明</b>，答完會跳出來"], csv:"題目內容欄、答案填 真 或 假、說明欄"},
   rhythm:{edit:["<b>至少 4 張圖片</b>，不上傳就用內建圖","不用填題目，跟著節拍念出亮起的圖"], csv:"只要填分類、題名、題型（圖片要到編輯畫面上傳）"},
   buzz:{edit:["<b>題目</b>，主持人會念出來","<b>答案</b>，答對、全部答錯或時間到才會公布"], csv:"題目內容欄、答案欄"},
 };
 const esc = v => String(v).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const introOf = q => ({lines: q.intro || INTRO[q.type], big: `${q.title}！`, own: !!q.intro});
+const typeKey = q => q.type === "grid" && q.rounds && q.rounds[0] && q.rounds[0].mode === "name" ? "gridName" : q.type;   // 說明頁和開場字幕用：九宮格分兩種玩法
+const introOf = q => ({lines: q.intro || INTRO[typeKey(q)], big: `${q.title}！`, own: !!q.intro});
 function bankRounds(q){   // 這一題實際會用到的內容（沒指定就是占位內容）
   if(q.type === "quiz") return pick1(q.qs, QS, q).map(r => `${r.q}　選項：${r.o.map((t,i) => (i === r.a ? "★" : "") + t).join("、")}`);
   if(q.type === "song" && !(q.songs && q.songs.length)) return [listId(SONGLIST) ? "從猜歌歌單隨機抽一首" : "從猜歌歌單隨機抽一首（還沒設定歌單，會先用占位旋律）"];
-  if(q.type === "song") return pick1(q.songs, SONGS, q).map(r => `歌名：${r.title}${ytId(r.yt) ? "（YouTube）" : r.src ? "（音檔）" : "（占位旋律）"}`);
-  if(q.type === "grid") return pick1(q.rounds, gridRounds(q), q).map(r => `${r.q}　答案：${r.targets.length} 人（第 ${r.targets.map(i => i+1).join("、")} 格）`);
+  if(q.type === "song") return pick1(q.songs, SONGS, q).map(r => `歌名：${r.title}${ytId(r.yt) ? "（YouTube）" : r.src ? "（音檔）" : "（占位旋律）"}${r.start != null ? `，從 ${mmss(r.start)} 開始播` : ""}`);
+  if(q.type === "grid") return pick1(q.rounds, gridRounds(q), q).map(r => r.mode === "name" ? `${r.q}　答案：${r.names.map((v,i) => `${i+1}. ${v}`).join("、")}` : `${r.q}　答案：${r.targets.length} 人（第 ${r.targets.map(i => i+1).join("、")} 格）`);
   if(q.type === "sort") return pick1(q.rounds, ROUND_DATA.sort, q).map(r => `${r.q}　正確順序：${r.items.join(" → ")}`);
   if(q.type === "buzz") return pick1(q.rounds, BUZZ0, q).map(r => `${r.q}　答案：${r.answer}`);
   if(q.type === "tf") return pick1(q.rounds, ROUND_DATA.tf, q).map(r => `${r.q}　答案：${r.a ? "真" : "假"}　${r.note || ""}`);
@@ -943,7 +945,7 @@ const mediaBox = (p,ref,accept,kind) => `<div class="mb"><span class="th">${ref 
 function roundHtml(t,r,i){ const k = rk(t) + "." + i; let h = "";
   if(t === "quiz") h = fld("題目",area(k+".q",r.q,"請輸入題目")) + `<div class="optgrid">` + [0,1,2,3].map(j => `<div class="opt"><input type="radio" name="a${i}" data-p="${k}.a" data-v="${j}" ${r.a === j ? "checked" : ""} title="設為正確答案"><textarea class="one" rows="1" data-p="${k}.o.${j}" placeholder="選項 ${"ABCD"[j]}">${esc(r.o[j])}</textarea></div>`).join("") + `</div><small>選項左邊的圓點選的就是正確答案</small>`;
   else if(t === "song") h = fld("題目文字",inp(k+".q",r.q)) + fld("歌名（答案）",inp(k+".title",r.title,"例如：Jingle Bells")) + fld("YouTube 網址",inp(k+".yt",r.yt,"例如：https://www.youtube.com/watch?v=…"),"有填就從 YouTube 播放（需要網路），會隨機從歌曲中間開始") + fld("音檔（沒有 YouTube 網址時才會用）",mediaBox(k+".src",r.src,"audio/*","aud"),"兩個都沒有時會播占位旋律。單一檔案上限 15MB");
-  else if(t === "grid") h = fld("題目",area(k+".q",r.q,"例如：請找出所有戴眼鏡的人")) + `<div class="gridfm">${r.cells.map((c,j) => `<div class="cell"><label><input type="checkbox" data-t="${k}.targets" data-v="${j}" ${r.targets.includes(j) ? "checked" : ""}> 第 ${j+1} 格符合條件</label>${mediaBox(k+".cells."+j+".img",c.img,"image/*","img")}</div>`).join("")}</div><small>9 格沒上傳圖片時，會用自動產生的卡通臉。勾選符合題目條件的人，答案人數就是勾選的數量</small>`;
+  else if(t === "grid") h = fld("題目",area(k+".q",r.q,"例如：請找出所有戴眼鏡的人")) + `<div class="gridfm">${r.cells.map((c,j) => `<div class="cell">${r.mode === "name" ? `<label>第 ${j+1} 格的答案 <input class="one" data-p="${k}.names.${j}" value="${esc(r.names[j] || "")}"></label>` : `<label><input type="checkbox" data-t="${k}.targets" data-v="${j}" ${r.targets.includes(j) ? "checked" : ""}> 第 ${j+1} 格符合條件</label>`}${mediaBox(k+".cells."+j+".img",c.img,"image/*","img")}</div>`).join("")}</div><small>9 格沒上傳圖片時，會用自動產生的卡通臉。勾選符合題目條件的人，答案人數就是勾選的數量</small>`;
   else if(t === "sort") h = fld("題目",area(k+".q",r.q,"例如：請由早到晚排序")) + fld("項目（一行一個，請照正確順序寫）",`<textarea data-lines="${k}.items" rows="5" placeholder="最早的&#10;第二個&#10;第三個&#10;最晚的">${esc(r.items.join("\n"))}</textarea>`,"2 到 5 個項目，畫面會自動打亂");
   else if(t === "buzz") h = fld("題目",area(k+".q",r.q,"主持人會念出這一題")) + fld("答案",inp(k+".answer",r.answer,"主持人判定用，公布時會顯示"));
   else if(t === "tf") h = fld("陳述句",area(k+".q",r.q,"例如：章魚有三顆心臟")) + `<div class="opt"><label><input type="radio" name="tf${i}" data-p="${k}.a" data-bool="1" ${r.a ? "checked" : ""}> 這句話是「真」</label><label><input type="radio" name="tf${i}" data-p="${k}.a" data-bool="0" ${!r.a ? "checked" : ""}> 這句話是「假」</label></div>` + fld("答案說明（答題後會跳出視窗顯示）",area(k+".note",r.note,"針對題目問的內容做解釋",3));
@@ -974,11 +976,11 @@ async function edFile(el){
   edRender(); }
 function edNormalize(q){ const t = q.type, key = rk(t); q.title = q.title.trim();
   if(t === "quiz") q.qs = q.qs.map(r => ({q:r.q.trim(), o:r.o.map(x => x.trim()), a:r.a}));
-  if(t === "song") q.songs = q.songs.map(r => ({q:(r.q || "").trim() || "請講出這首歌的歌名", title:r.title.trim(), yt:(r.yt || "").trim(), src:r.src || null}));
+  if(t === "song") q.songs = q.songs.map(r => ({q:(r.q || "").trim() || "請講出這首歌的歌名", title:r.title.trim(), yt:(r.yt || "").trim(), src:r.src || null, start:r.start ?? null}));
   if(t === "buzz") q.rounds = q.rounds.map(r => ({q:r.q.trim(), answer:(r.answer || "").trim()}));
   if(t === "sort") q.rounds = q.rounds.map(r => ({q:r.q.trim(), items:r.items.map(x => x.trim()).filter(Boolean)}));
   if(t === "tf") q.rounds = q.rounds.map(r => ({q:r.q.trim(), a:!!r.a, note:r.note.trim()}));
-  if(t === "grid") q.rounds = q.rounds.map(r => ({q:r.q.trim(), targets:[...r.targets].sort((a,b) => a-b), cells:r.cells}));
+  if(t === "grid") q.rounds = q.rounds.map(r => ({q:r.q.trim(), targets:[...r.targets].sort((a,b) => a-b), cells:r.cells, ...(r.mode === "name" ? {mode:"name", names:r.names.map(v => (v || "").trim())} : {})}));
   ["qs","songs","rounds","photos"].forEach(k => { if(k !== key) delete q[k]; }); }
 function edCheck(q){ if(!q.title) return "請填題名"; const t = q.type, R = q[rk(t)];
   if(t !== "rhythm" && t !== "song" && !R.length) return "至少要有一" + ROUND_LABEL[t];   // 猜歌沒有指定歌：從猜歌歌單抽
@@ -988,7 +990,8 @@ function edCheck(q){ if(!q.title) return "請填題名"; const t = q.type, R = q
     if(t === "song" && !r.title) return n + "請填歌名";
     if(t === "song" && r.yt && !ytId(r.yt)) return n + "看不懂這個 YouTube 網址，請貼影片頁面的網址";
     if(t === "buzz" && !r.answer) return n + "請填答案";
-    if(t === "grid" && !r.targets.length) return n + "請勾選至少一格符合條件的人";
+    if(t === "grid" && r.mode !== "name" && !r.targets.length) return n + "請勾選至少一格符合條件的人";
+    if(t === "grid" && r.mode === "name" && r.names.some(v => !v)) return n + "9 格都要填答案";
     if(t === "sort" && (r.items.length < 2 || r.items.length > 5)) return n + "項目要 2 到 5 個（一行一個）";
     if(t === "tf" && !r.note) return n + "請填答案說明，答題後會顯示"; }
   if(t === "rhythm" && q.photos.length && q.photos.length < 4) return "節奏遊戲的圖片至少 4 張（或全部不上傳，用內建圖）";
@@ -1026,7 +1029,7 @@ async function loadBankFile(){ bankFilePush.on = true;
     await applyBank(o); try{ localStorage.setItem(BANK_KEY, JSON.stringify(BANK)); }catch(e){}
     if(scene && scene.home && !trans) setScene(Home()); }catch(e){ console.error(e); } }
 // ===== 試算表（CSV）：題庫和 Google 試算表互轉。一列是一個小題，分類＋題名相同的列合成同一題 =====
-const CSV_HEAD = ["分類","題名","題型","題目內容","答案","選項1","選項2","選項3","選項4","選項5","說明","開場字幕","YouTube"];
+const CSV_HEAD = ["分類","題名","題型","題目內容","答案","選項1","選項2","選項3","選項4","選項5","說明","開場字幕","YouTube","開始時間"];
 const TYPE_CSV = {quiz:"選擇題", song:"猜歌", grid:"九宮格", sort:"排序", tf:"真假", rhythm:"節奏", buzz:"搶答"};
 const csvCell = v => /[",\r\n]/.test(v = String(v ?? "")) ? `"${v.replace(/"/g,'""')}"` : v;
 const toCSV = rows => "﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n");   // 開頭的 BOM 讓 Excel 用 UTF-8 開，中文才不會變亂碼
@@ -1036,26 +1039,28 @@ function parseCSV(t){ const rows = []; let row = [], f = "", q = false; t = t.re
     else if(c === '"') q = true; else if(c === ","){ row.push(f); f = ""; }
     else if(c === "\n" || c === "\r"){ if(c === "\r" && t[i+1] === "\n") i++; row.push(f); rows.push(row); row = []; f = ""; } else f += c; }
   if(f || row.length){ row.push(f); rows.push(row); } return rows.filter(r => r.some(x => x.trim())); }
+const mmss = n => `${Math.floor(n/60)}:${String(Math.floor(n%60)).padStart(2,"0")}`;
 function bankToCSV(){ const rows = [CSV_HEAD];
   BANK.forEach(q0 => { const q = toEditable(q0), t = q.type, base = [CATS[q.cat].name, q.title, TYPE_CSV[t]], intro = q.intro ? q.intro.join("|") : "";
-    (t === "rhythm" || !q[rk(t)].length ? [null] : q[rk(t)]).forEach((r,i) => { const o = ["","","","",""]; let qq = "", ans = "", note = "", yt = "";
+    (t === "rhythm" || !q[rk(t)].length ? [null] : q[rk(t)]).forEach((r,i) => { const o = ["","","","",""]; let qq = "", ans = "", note = "", yt = "", st = "";
       if(t === "quiz"){ qq = r.q; ans = "ABCD"[r.a]; r.o.forEach((x,j) => o[j] = x); }
       else if(t === "tf"){ qq = r.q; ans = r.a ? "真" : "假"; note = r.note || ""; }
       else if(t === "sort"){ qq = r.q; r.items.forEach((x,j) => o[j] = x); }
-      else if(t === "song" && r){ qq = r.q; ans = r.title; yt = r.yt || ""; }
+      else if(t === "song" && r){ qq = r.q; ans = r.title; yt = r.yt || ""; if(r.start != null) st = mmss(r.start); }
       else if(t === "buzz"){ qq = r.q; ans = r.answer; }
-      else if(t === "grid"){ qq = r.q; ans = r.targets.map(x => x+1).join(","); }
-      rows.push([...base, qq, ans, ...o, note, intro, yt]); }); });   // 一列就是一題
+      else if(t === "grid"){ qq = r.q; ans = r.mode === "name" ? r.names.join("\n") : r.targets.map(x => x+1).join(","); }
+      rows.push([...base, qq, ans, ...o, note, intro, yt, st]); }); });   // 一列就是一題
   return toCSV(rows); }
 function csvToBank(text){ let rows = parseCSV(text), head = (rows.shift() || []).map(h => h.trim()), col = n => head.indexOf(n), errs = [], out = [], byKey = new Map(), TY = {};
   const FORM = head.includes("選擇題：題目");   // Google 表單的回覆工作表：每個題型的欄位分開，先轉成一般試算表的欄位
   if(FORM){ const M = {選擇題:{題目內容:"選擇題：題目", 答案:"選擇題：正確答案", 選項1:"選擇題：選項A", 選項2:"選擇題：選項B", 選項3:"選擇題：選項C", 選項4:"選擇題：選項D"},
-      真假:{題目內容:"真假：題目", 答案:"真假：答案", 說明:"真假：答案說明"}, 排序:{題目內容:"排序：題目", 選項1:"排序：第 1 個", 選項2:"排序：第 2 個", 選項3:"排序：第 3 個", 選項4:"排序：第 4 個", 選項5:"排序：第 5 個"}, 九宮格:{題目內容:"九宮格：題目", 答案:"九宮格：符合條件的格子", 照片:"九宮格：照片"},
-      猜歌:{答案:"猜歌：歌名", YouTube:"猜歌：YouTube 網址", 來源:"猜歌：音樂來源"}, 節奏:{照片:"節奏：圖片"}, 搶答:{題目內容:"搶答：題目", 答案:"搶答：答案"}};
-    const H = [...CSV_HEAD, "照片"];
+      真假:{題目內容:"真假：題目", 答案:"真假：答案", 說明:"真假：答案說明"}, 排序:{題目內容:"排序：題目", 選項1:"排序：第 1 個", 選項2:"排序：第 2 個", 選項3:"排序：第 3 個", 選項4:"排序：第 4 個", 選項5:"排序：第 5 個"}, 九宮格:{題目內容:"九宮格：題目", 答案:"九宮格：符合條件的格子", 照片:"九宮格：照片", 玩法:"九宮格：玩法", 名單:"九宮格：每格的答案"},
+      猜歌:{答案:"猜歌：歌名", YouTube:"猜歌：YouTube 網址", 來源:"猜歌：音樂來源", 開始時間:"猜歌：開始播放的時間"}, 節奏:{照片:"節奏：圖片"}, 搶答:{題目內容:"搶答：題目", 答案:"搶答：答案"}};
+    const H = [...CSV_HEAD, "照片", "玩法"];
     rows = rows.map(r => { const v = n => (r[head.indexOf(n)] ?? "").trim(), o = {分類:v("分類"), 題名:v("題名"), 題型:v("題型")};
       Object.entries(M[o.題型] || {}).forEach(([k,n]) => o[k] = v(n));
-      if(/歌單/.test(o.來源 || "")) o.答案 = o.YouTube = "";   // 選了「用遊戲設定的猜歌歌單」：這題不指定歌
+      if(/歌單/.test(o.來源 || "")) o.答案 = o.YouTube = "";
+      if(/是誰/.test(o.玩法 || "")) o.答案 = o.名單 || "";   // 九宮格「說出每張是誰」：答案欄放每格的答案   // 選了「用遊戲設定的猜歌歌單」：這題不指定歌
       return H.map(n => o[n] ?? ""); });
     const last = new Map(); rows.forEach((r,i) => last.set(r[0] + "\n" + r[1], i)); rows = rows.map((r,i) => last.get(r[0] + "\n" + r[1]) === i ? r : null);   // 同一題送了好幾次：用最後一次的回覆
     head = H; }
@@ -1077,8 +1082,12 @@ function csvToBank(text){ let rows = parseCSV(text), head = (rows.shift() || [])
     else if(t === "tf"){ const a = ["真","O","○","TRUE","是","對"].includes(up) ? true : ["假","X","✗","×","FALSE","否","錯"].includes(up) ? false : null; if(a === null) return errs.push(at + "真假題的答案要填「真」或「假」"); x = {q:qq, a, note:g("說明")}; }
     else if(t === "sort"){ if(o.length < 2) return errs.push(at + "排序至少要 2 個項目，照正確順序填"); x = {q:qq, items:o}; }
     else if(t === "song"){ if(!ans && !g("YouTube")){ n.list = true; return; }   // 歌名和網址都沒填：這題從猜歌歌單抽
-      if(!ans) return errs.push(at + "猜歌的答案要填歌名"); if(g("YouTube") && !ytId(g("YouTube"))) return errs.push(at + "看不懂 YouTube 欄的網址"); x = {q:qq || "請講出這首歌的歌名", title:ans, yt:g("YouTube"), src:null}; }
+      if(!ans) return errs.push(at + "猜歌的答案要填歌名"); if(g("YouTube") && !ytId(g("YouTube"))) return errs.push(at + "看不懂 YouTube 欄的網址"); const st = g("開始時間"), sm = st.match(/^(\d+)[:：]([0-5]?\d)$/) || st.match(/^(\d+)$/); if(st && !sm) return errs.push(at + "開始時間要照「分:秒」填，例如 1:05");
+      x = {q:qq || "請講出這首歌的歌名", title:ans, yt:g("YouTube"), src:null, start: sm ? (sm[2] != null ? +sm[1]*60 + +sm[2] : +sm[1]) : null}; }
     else if(t === "buzz"){ if(!ans) return errs.push(at + "搶答題的答案不能空白"); x = {q:qq, answer:ans}; }
+    else if(t === "grid" && (/是誰/.test(g("玩法")) || (!g("玩法") && /[^\d\s,，、]/.test(ans)))){   // 說出每張是誰：答案一行一個（試算表沒有玩法欄時，答案不是格子編號就當成這種）
+      const names = ans.split(/\n/).map(v => v.trim()).filter(Boolean); if(names.length !== 9) return errs.push(at + `九宮格「說出每張是誰」要剛好 9 個答案，一行一個，這題填了 ${names.length} 個`);
+      if(ph.length && ph.length !== 9) return errs.push(at + `九宮格要剛好 9 張照片，這題上傳了 ${ph.length} 張`); const cells = BLANK.grid().cells; ph.forEach((u,i) => cells[i].img = u); x = {q:qq, mode:"name", names, targets:[], cells}; }
     else if(t === "grid"){ const tg = [...new Set(ans.split(/[,，、\s]+/).filter(Boolean).map(v => +v - 1))].sort((a,b) => a-b); if(!tg.length || tg.some(v => !(v >= 0 && v < 9))) return errs.push(at + "九宮格的答案要填格子編號 1～9，多個用逗號隔開"); if(ph.length && ph.length !== 9) return errs.push(at + `九宮格要剛好 9 張照片，這題上傳了 ${ph.length} 張`); const cells = BLANK.grid().cells; ph.forEach((u,i) => cells[i].img = u); x = {q:qq, targets:tg, cells}; }
     n.rows.push(x); });
   const ok = out.filter(n => n.type === "rhythm" || n.list || n.rows.length);   // 表單的回覆：有問題的題目跳過，其他照常匯入
@@ -1268,10 +1277,10 @@ function songPlayer(){ let r = null, el = null, yt = null, bus = null, playing =
       if(yt) return ytReady().then(p => { if(my !== gen) return;
           YTP.onErr = code => { if(my !== gen) return; if(r.list && (r.tries = (r.tries || 0) + 1) <= 8){ PL.bad.add(yt); r.yt = ""; return P.load(r); }   // 歌單裡不能播的歌：記下來，自動換一首
             playing = false; P.err = code === 101 || code === 150 ? "這支影片的上傳者不允許在其他網站播放，請換一支影片或改上傳音檔" : code === 100 ? "找不到這支影片（可能已刪除或設為私人）" : `YouTube 播放失敗（錯誤 ${code}），請換一支影片`; };
-          YTP.onPlay = () => { YTP.onPlay = null; if(r.list && !r.title) r.title = (p.getVideoData() || {}).title || ""; const d = p.getDuration(); if(d > 5) p.seekTo(Math.floor(d*Math.random()*.9), true); };
+          YTP.onPlay = () => { YTP.onPlay = null; if(r.list && !r.title) r.title = (p.getVideoData() || {}).title || ""; const d = p.getDuration(); if(d > 5) p.seekTo(r.start != null && r.start < d - 1 ? r.start : Math.floor(d*Math.random()*.9), true); };   // 題目有指定開始時間就從那裡播
           p.setVolume(Math.round(CFG.music*100)); if(muted) p.mute(); else p.unMute(); p.loadVideoById(yt); if(!playing) p.pauseVideo(); })
         .catch(() => { if(my !== gen) return; yt = null; dur = nDur(); P.err = "YouTube 載入失敗（這台電腦可能沒有網路），先改播占位旋律"; P.play(dur*Math.random()*.6); });   // 沒網路時改播占位旋律
-      if(el){ el.onloadedmetadata = () => { el.currentTime = el.duration*Math.random()*.9; }; el.volume = CFG.music; el.muted = muted; el.play().catch(() => {}); return; }
+      if(el){ el.onloadedmetadata = () => { el.currentTime = r.start != null && r.start < el.duration - 1 ? r.start : el.duration*Math.random()*.9; }; el.volume = CFG.music; el.muted = muted; el.play().catch(() => {}); return; }
       P.play(dur*Math.random()*.6); },
     play(from){ stopNodes(); playing = true;
       if(yt){ if(yp()){ if(from != null) yp().seekTo(from, true); yp().playVideo(); } return; }
@@ -1296,7 +1305,7 @@ function Quiz(kind = "quiz"){
   const pb = () => song ? [playB] : [];   // 猜歌公布答案、判定、時間到之後都還能繼續聽
   const btns = () => (phase === "judged" ? [fixB,...pb(),nextB] : phase === "timeout" ? [...pb(),endB] : phase === "shown" ? [...pb(),rightP,wrongP] : phase === "ask" ? (song ? [jumpB,playB,showB] : grid ? [showB] : []) : []).filter(Boolean);   // 猜歌、九宮格：主持人不一定知道答案，先「公布答案」再判定對錯
   const setPads = () => { s.pads = [...pads, ...btns()]; s.layout(); };
-  const ansText = () => song ? (q.title || "（歌名讀取中）") : grid ? `${q.targets.length} 人` : `${"ABCD"[q.a]}　${q.o[q.a]}`;
+  const ansText = () => song ? (q.title || "（歌名讀取中）") : grid ? (q.mode === "name" ? "見每張圖下方" : `${q.targets.length} 人`) : `${"ABCD"[q.a]}　${q.o[q.a]}`;
   const say = (main, color) => { rev = true; banner = song ? {text:main, color} : {text:main, sub:`答案：${ansText()}`, color}; };
   const s = {showScore:true, guard:true, noBgm:true, game:true, qbgm:!song, pads:[],
     layout(){ const pt = W < H, short = !pt && H < 520, cx = W/2, cw = W-32, qs = short ? Math.max(15, Math.min(24*u, 20)) : Math.max(17,24*u), y0 = short ? insT+34 : insT+62*u+14, ss = short ? 20 : 22*u+8;
@@ -1321,7 +1330,7 @@ function Quiz(kind = "quiz"){
       if(phase === "shown"){ if(p === rightP) return judge(true); if(p === wrongP) return judge(false); return; }
       if(phase !== "ask") return;
       if(p === rightP) return judge(true); if(p === wrongP) return judge(false);
-      if(p === showB){ SFX.pop(); tm.stop(); phase = "shown"; rev = true; banner = song ? null : {text:`答案：${ansText()}`, color:C.gold}; if(grid) revealGrid(); setPads(); return; }
+      if(p === showB){ SFX.pop(); tm.stop(); phase = "shown"; rev = true; banner = song || (grid && q.mode === "name") ? null : {text:`答案：${ansText()}`, color:C.gold}; if(grid) revealGrid(); setPads(); return; }   // 說出每張是誰：答案標在每張圖下面，不用橫幅蓋住圖
       if(song){ if(p === jumpB){ SFX.pop(); pl.jump(); } else if(p === playB){ SFX.pop(); pl.toggle(); } return; }
       if(!grid && p.idx !== undefined) answer(p.idx); },
     update(dt){
@@ -1367,6 +1376,8 @@ function Quiz(kind = "quiz"){
     g.fillStyle = "rgba(2,8,22,.4)"; g.beginPath(); g.roundRect(x-sz,y-sz+r*.08,sz*2,sz*2,sz*.14); g.fill();
     drawFace(x,y,sz,p.cell);
     if(p.state === "win"){ g.strokeStyle = C.green; g.lineWidth = 6; g.beginPath(); g.roundRect(x-sz,y-sz,sz*2,sz*2,sz*.14); g.stroke(); g.lineWidth = r*.12; g.lineCap = "round"; g.beginPath(); g.moveTo(x-r*.35,y+r*.02); g.lineTo(x-r*.1,y+r*.28); g.lineTo(x+r*.4,y-r*.3); g.strokeStyle = C.green; g.stroke(); }
+    if(p.state === "name"){ const hh = sz*.42; g.save(); g.beginPath(); g.roundRect(x-sz,y-sz,sz*2,sz*2,sz*.14); g.clip(); g.fillStyle = "rgba(4,12,28,.8)"; g.fillRect(x-sz,y+sz-hh,sz*2,hh); g.restore();   // 每張圖下面的答案
+      txt((q.names || [])[p.idx] || "", x, y+sz-hh/2, {size:Math.max(12,sz*.26), w:900, c:C.gold, maxW:sz*1.84}); g.strokeStyle = C.gold; g.lineWidth = 4; g.beginPath(); g.roundRect(x-sz,y-sz,sz*2,sz*2,sz*.14); g.stroke(); }
     g.restore(); }
   function giftPad(x,y,r,p){
     const col = p.color, dk = mixHex(col,"#061326",.45), lt = mixHex(col,"#ffffff",.3), o = easeOut(clamp(p.open,0,1)), bw = r*.9, bt = y-r*.38, bb = y+r*.58, rib = "#f4d27a", rv = p.rv;
@@ -1396,7 +1407,7 @@ function Quiz(kind = "quiz"){
     if(ok){ sel.state = "win"; pads.forEach((p,k) => { if(k !== i) p.dim = true; }); SFX.boxOpen(); award(sel.x,sel.y-sel.r*.9,1.9); }
     else { sel.state = "empty"; SFX.boxOpen(); miss(sel.x,sel.y-sel.r*1.5,"MISS",2.6); revealAt = T + .8; }
     setPads(); }
-  function revealGrid(){ pads.forEach(p => { const hit = q.targets.includes(p.idx); p.state = hit ? "win" : ""; p.dim = !hit; }); }   // 公布時標出符合條件的人
+  function revealGrid(){ pads.forEach(p => { if(q.mode === "name"){ if(p.idx !== undefined) p.state = "name"; return; } const hit = q.targets.includes(p.idx); p.state = hit ? "win" : ""; p.dim = !hit; }); }   // 公布時標出符合條件的人
   function judge(ok, redo){ tm.stop(); if(!redo) snap = {score:G.score, combo:G.combo, maxCombo:G.maxCombo, kills, got:[...got]};   // 主持人判定：按錯可以按「更正」改回來。猜歌按答對、答錯時音樂繼續播，想停再按「暫停」
     phase = "judged"; last = ok; fixB = iconPill("back","更正","#5b6b7c"); nextB = miniPad(qi >= RL.length-1 ? "完成" : "下一題",C.green);
     say(ok ? "答對了！" : "答錯了", ok ? C.gold : C.red); if(grid) revealGrid(); setPads();
@@ -1729,8 +1740,8 @@ function demoDraw(type,d){
 const BOX_COLORS = ["#5fd0ff","#8b7bff","#D9B26A","#35c98a"];
 function Brief(q, resume, preview){
   let starting = false;
-  const c = CATS[q.cat], team = curTeam(), rules = OT ? [`加賽：${otVs()}`, ...RULES.buzz, `每題限時 ${QTIME} 秒`] : [preview ? "預覽模式：不會計分，也不影響比賽" : `挑戰隊伍：${team.name}`, ...(resume ? ["上次在這題中斷，按 START 重新開始這題"] : []), ...RULES[q.type], q.type === "rhythm" ? "完成挑戰得 1 分" : `限時 ${QTIME} 秒，答對得 1 分`].concat(q.placeholder ? ["（占位題目，正式題目待提供）"] : []);
-  const lines = q.intro || INTRO[q.type], big = `${q.title}！`, next = OT ? () => OTBuzz(q) : q.type === "rhythm" ? () => Rhythm() : ["quiz","song","grid"].includes(q.type) ? () => Quiz(q.type) : () => Round(q.type);
+  const c = CATS[q.cat], team = curTeam(), rules = OT ? [`加賽：${otVs()}`, ...RULES.buzz, `每題限時 ${QTIME} 秒`] : [preview ? "預覽模式：不會計分，也不影響比賽" : `挑戰隊伍：${team.name}`, ...(resume ? ["上次在這題中斷，按 START 重新開始這題"] : []), ...RULES[typeKey(q)], q.type === "rhythm" ? "完成挑戰得 1 分" : `限時 ${QTIME} 秒，答對得 1 分`].concat(q.placeholder ? ["（占位題目，正式題目待提供）"] : []);
+  const lines = q.intro || INTRO[typeKey(q)], big = `${q.title}！`, next = OT ? () => OTBuzz(q) : q.type === "rhythm" ? () => Rhythm() : ["quiz","song","grid"].includes(q.type) ? () => Quiz(q.type) : () => Round(q.type);
   const start = new Pad({r:80,pill:[1.3,.56],color:c.color === "#003255" ? "#4aa3df" : c.color,custom:(x,y,r) => txt("START",x,y,{size:r*.3,f:DISP,w:900,c:"#fff",ls:2,stroke:"rgba(0,0,0,.3)",sw:3})}), back = backPad();
   return {pads: OT ? [start] : [start,back], muffle:true,
     metrics(){ const rs = Math.max(13, Math.min(18*u+2, W*.045)), gap = rs*1.75, y1 = hdrBottom(hdrSz())+16+rs/2, yEnd = y1+(rules.length-1)*gap+rs/2; return {rs,gap,y1,yEnd}; },
