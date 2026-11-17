@@ -60,6 +60,14 @@ html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;backgrou
 /* 短暫提示：題庫同步的結果、警告 */
 #toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:90;box-sizing:border-box;max-width:min(560px,calc(100% - 32px));padding:10px 16px;border-radius:12px;background:rgba(6,20,42,.95);border:1px solid #D9B26A;color:#f4f1ea;font:500 14px/1.6 "Noto Sans TC","PingFang TC",sans-serif;white-space:pre-line;box-shadow:0 6px 24px rgba(0,0,0,.4)}
 #toast[hidden]{display:none}#toast.warn{border-color:#ff5d73}
+#prep{position:fixed;left:12px;top:12px;z-index:25;width:min(340px,calc(100% - 24px));box-sizing:border-box;padding:12px 14px;border-radius:12px;background:rgba(6,20,42,.94);border:1px solid #2f4f6e;color:#f4f1ea;font:500 13px/1.6 "Noto Sans TC","PingFang TC",sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+#prep[hidden],body:not(.onhome) #prep{display:none}
+#prep.ok{border-color:#58d68d}#prep.bad{border-color:#ff5d73}
+#prep b{display:block;font-size:14px;font-weight:900}
+#prep .bar{height:6px;margin:8px 0;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}#prep .bar i{display:block;height:100%;width:0;background:#D9B26A;transition:width .2s}
+#prep ul{margin:6px 0 0;padding-left:18px;max-height:30vh;overflow:auto;color:#ffb3bd}#prep ul:empty{display:none}
+#prep .act{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+#prep button{font:inherit;font-weight:700;padding:5px 12px;border-radius:8px;border:1px solid #5fd0ff;background:#0c2238;color:#fff;cursor:pointer}
 /* ===== 設定頁 ===== */
 #cfg{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:rgba(4,10,22,.86);overflow:auto;color:#f4f1ea;font-family:"Noto Sans TC",sans-serif}
 #cfg[hidden]{display:none}
@@ -210,6 +218,7 @@ html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;backgrou
 </div></div>
 <div id="sw" role="timer" aria-label="場控碼表"><i id="swDot" data-s="local" title="只存在這台電腦的瀏覽器"></i><span class="l">TIME</span><b id="swT">00:00</b><button id="swP" aria-label="開始">▶</button><button id="swR" aria-label="歸零">↺</button></div>
 <div id="toast" hidden role="status"></div>
+<div id="prep" hidden role="status"><b id="prepT"></b><div class="bar"><i id="prepBar"></i></div><div id="prepSub"></div><ul id="prepList"></ul><div class="act"><button id="prepRetry" hidden>重試</button><button id="prepClose">關閉</button></div></div>
 <div id="ytBox" aria-hidden="true"><div id="yt"></div></div>
 <div id="mon" hidden>
   <!-- 這裡可以替換成您自己的 MP4 影片網址：改下方 QS 的 video 欄位（每題可不同） -->
@@ -259,15 +268,16 @@ const MDB = (() => { let p = null;
 const IMGC = new Map(), AUDC = new Map();   // 已載入的圖片（Image）與音檔（物件網址），key 是 IndexedDB 裡的編號
 const imgOf = r => !r ? null : (typeof r === "object" ? r : (IMGC.get(r) || null));
 function mediaRefs(q){ const img = new Set(), aud = new Set(); (q.rounds||[]).forEach(r => { (r.cells||[]).forEach(c => c.img && img.add(c.img)); r.img && img.add(r.img); }); (q.photos||[]).forEach(p => img.add(p)); (q.songs||[]).forEach(s => s.src && aud.add(s.src)); return {img, aud}; }
-const URLBAD = new Set();   // 這次開遊戲下載失敗過的圖片網址：之後不再重試，避免每次進題目都等
-async function urlBlob(k){ let b = await MDB.get(k).catch(() => null); if(b) return b;   // 網址的圖（表單上傳的照片）：第一次下載後存在這台電腦，比賽中不用再跟 Google 要
+const URLBAD = new Map(), URLGET = new Map();   // URLBAD：這次開遊戲下載失敗過的圖片網址和原因（busy 被 Google 限制 / fail 其他），之後不再重試，避免每次進題目都等
+function urlBlob(k, onWait){ if(!URLGET.has(k)) URLGET.set(k, urlFetch(k, onWait).finally(() => URLGET.delete(k))); return URLGET.get(k); }   // 同一張同時只下載一次
+async function urlFetch(k, onWait){ let b = await MDB.get(k).catch(() => null); if(b) return b;   // 網址的圖（表單上傳的照片）：第一次下載後存在這台電腦，比賽中不用再跟 Google 要
   if(URLBAD.has(k)) return null;
-  for(let i=0;i<2;i++){ try{ const r = await fetch(k); if(r.ok && /^image\//.test(r.headers.get("content-type") || "")){ b = await r.blob(); await MDB.put(k,b).catch(() => {}); return b; } }catch(e){}
-    if(!i) await new Promise(r => setTimeout(r, 1500)); }   // Google 偶爾回「請求太多」(429)：等一下再試一次
-  URLBAD.add(k); return null; }   // 沒開放的雲端硬碟照片會被導到登入頁，瀏覽器只看得到「讀取失敗」，和沒網路分不出來
-async function warmUrls(){ URLBAD.clear(); let bad = 0;   // 同步完在背景一張一張先下載，不要同時大量請求
-  for(const q of BANK) for(const k of mediaRefs(q).img) if(/^https?:/.test(k) && !(await urlBlob(k))) bad++;
-  if(bad) toast(`有 ${bad} 張出題表單上傳的照片下載不到，會先用占位圖。請把雲端硬碟裡表單的上傳資料夾設成「知道連結的任何人都能檢視」，再按題庫頁的「從表單回覆更新」`, true, 20000); }
+  let fails = 0, busy = 0;
+  while(true){ let st = 0;
+    try{ const r = await fetch(k); st = r.status; if(r.ok && /^image\//.test(r.headers.get("content-type") || "")){ b = await r.blob(); await MDB.put(k,b).catch(() => {}); return b; } }catch(e){}
+    if(st === 429 && busy < 4){ busy++; if(onWait) onWait(); await new Promise(r => setTimeout(r, 3000*busy)); continue; }   // Google 暫時限制下載次數（429）：等 3、6、9、12 秒再試
+    if(++fails >= 2) break; await new Promise(r => setTimeout(r, 1500)); }   // 其他失敗再試一次。沒開放的雲端硬碟照片會被導到登入頁，瀏覽器只看得到「讀取失敗」，和沒網路分不出來
+  URLBAD.set(k, busy >= 4 ? "busy" : "fail"); return null; }
 async function preloadMedia(q){   // 進入遊戲前先把這題用到的圖片和音檔載好
   const r = mediaRefs(q);
   await Promise.all([...[...r.img].filter(k => !IMGC.has(k)).map(async k => { try{ const b = /^https?:/.test(k) ? await urlBlob(k) : await MDB.get(k); if(!b) return; const im = new Image(); im.src = URL.createObjectURL(b); if(await im.decode().then(() => true, () => false)) IMGC.set(k,im); }catch(e){} }),
@@ -658,7 +668,7 @@ const muteBtn = new Pad({r:20,color:"#4aa3df",label:"",custom:(x,y,r) => glyph("
 // ===== 場景管理與換頁（深色寬帶橫掃，中途換場景）=====
 let scene = null, trans = null, downPad = null, ptr = {x:0,y:0};
 function go(make){ if(trans) return; trans = {t:0, make, swapped:false}; SFX.swoosh(); }
-function setScene(s){ BOSS.on = !!OT; if(OT && !BOSS.timer) bossMusic(true); else if(!OT && BOSS.timer) bossMusic(false); scene && scene.exit && scene.exit(); scene = s; PT.length = 0; s.layout && s.layout(); s.enter && s.enter(); themeWant(!s.noBgm); }
+function setScene(s){ BOSS.on = !!OT; if(OT && !BOSS.timer) bossMusic(true); else if(!OT && BOSS.timer) bossMusic(false); scene && scene.exit && scene.exit(); scene = s; document.body.classList.toggle("onhome", !!s.home); PT.length = 0; s.layout && s.layout(); s.enter && s.enter(); themeWant(!s.noBgm); }
 function drawTrans(){
   const p = trans.t, k = .16*H; let x0, x1;
   if(p < .5){ x0 = lerp(-W*1.3, -k, easeOut(p*2)); x1 = x0 + W*1.4; } else { x0 = lerp(-k, W*1.3, easeOut((p-.5)*2)); x1 = x0 + W*1.4; }
@@ -1140,7 +1150,33 @@ async function badSongs(){ const bad = [];   // 指定的 YouTube 影片：已�
     const ok = await fetch("https://www.youtube.com/oembed?format=json&url=" + encodeURIComponent("https://www.youtube.com/watch?v=" + id)).then(x => x.ok, () => true);   // 沒網路就不判定
     if(!ok) bad.push(`猜歌「${q.title}」的 YouTube 影片播不出來（已刪除、私人或不允許嵌入），請到表單改網址`); }
   return bad; }
-async function sheetSync(manual){ const id = sheetId(SHEETURL); if(!id) return; const gid = (String(SHEETURL).match(/[#?&]gid=(\d+)/) || [])[1], tab = gid ? "&gid=" + gid : "";   // 網址有 gid 就讀那個工作表，沒有就讀第一個
+async function sheetSync(manual){ await syncSheet(manual); prepMedia(); }   // 同步完（或沒有同步）都準備一次題庫
+// ===== 準備題庫：把表單上傳的照片全部先下載到這台電腦，並檢查指定的 YouTube 影片能不能播。首頁左上角顯示進度，有失敗可以重試 =====
+let prepGen = 0, prepTimer = 0;
+async function prepMedia(){ const my = ++prepGen; URLBAD.clear(); clearTimeout(prepTimer);   // 重試或重新同步時，上一輪還沒跑完的就不再更新畫面
+  const jobs = []; BANK.forEach(q => { const lab = `${CATS[q.cat].name}「${q.title}」`;
+    (q.rounds || []).forEach(r => (r.cells || []).forEach((c,i) => /^https?:/.test(c.img || "") && jobs.push({k:c.img, lab, n:i+1, unit:"格"})));
+    (q.photos || []).forEach((k,i) => /^https?:/.test(k) && jobs.push({k, lab, n:i+1, unit:"張"})); });
+  const box = $("#prep"), set = (cls, title, sub, n) => { box.className = cls; $("#prepT").textContent = title; $("#prepSub").textContent = sub; $("#prepBar").style.width = (jobs.length ? n/jobs.length*100 : 100) + "%"; };
+  box.hidden = false; $("#prepRetry").hidden = true; $("#prepList").innerHTML = "";
+  let done = 0, i = 0; const bad = [];
+  set("", "準備題庫中…", jobs.length ? `下載出題表單上傳的照片 0 / ${jobs.length}` : "", 0);
+  const wait = () => my === prepGen && set("", "準備題庫中…", `下載出題表單上傳的照片 ${done} / ${jobs.length}（Google 暫時限制下載次數，等幾秒自動重試）`, done);
+  const worker = async () => { while(i < jobs.length){ const j = jobs[i++], b = await urlBlob(j.k, wait); if(my !== prepGen) return; if(!b) bad.push({...j, why:URLBAD.get(j.k)}); done++; set("", "準備題庫中…", `下載出題表單上傳的照片 ${done} / ${jobs.length}`, done); } };
+  await Promise.all([0,1,2].map(worker)); if(my !== prepGen) return;   // 同時下載 3 張，太多會被 Google 擋
+  const songs = BANK.reduce((n,q) => n + (q.songs || []).filter(r => ytId(r.yt)).length, 0);
+  if(songs) set("", "準備題庫中…", "檢查猜歌指定的 YouTube 影片…", jobs.length);
+  const badS = songs ? await badSongs() : []; if(my !== prepGen) return;
+  const grp = new Map(); bad.forEach(j => { const key = j.lab + "|" + j.unit; grp.set(key, [...(grp.get(key) || []), j.n]); });
+  const lines = [...[...grp].map(([key, ns]) => { const [lab, unit] = key.split("|"); return `${lab}第 ${ns.sort((a,b) => a-b).join("、")} ${unit}的照片下載不到`; }), ...badS];
+  const sum = `${BANK.length} 題` + (jobs.length ? `，照片 ${jobs.length - bad.length} / ${jobs.length} 張已存在這台電腦` : "") + (songs ? `，指定的 YouTube 影片 ${songs - badS.length} / ${songs} 首能播放` : "");
+  if(!BANK.length){ set("", "題庫是空的", "出題表單還沒有收到題目", 0); prepTimer = setTimeout(() => box.hidden = true, 8000); return; }
+  if(!lines.length){ set("ok", "題庫準備好了", sum, jobs.length); prepTimer = setTimeout(() => box.hidden = true, 8000); return; }
+  set("bad", `題庫有 ${lines.length} 個問題`, sum + (bad.length ? "。下載不到的照片比賽時會用占位圖。" : "") + (bad.some(j => j.why === "busy") ? "Google 暫時限制這台電腦的下載次數，過幾分鐘再按「重試」。" : "") + (bad.some(j => j.why !== "busy") ? "其他下載不到的，通常是雲端硬碟的上傳資料夾沒有開放「知道連結的任何人都能檢視」，開放後按「重試」。" : ""), jobs.length);
+  $("#prepList").innerHTML = lines.map(x => `<li>${esc(x)}</li>`).join(""); $("#prepRetry").hidden = false; }
+$("#prepRetry").onclick = () => prepMedia();
+$("#prepClose").onclick = () => { clearTimeout(prepTimer); $("#prep").hidden = true; };
+async function syncSheet(manual){ const id = sheetId(SHEETURL); if(!id) return; const gid = (String(SHEETURL).match(/[#?&]gid=(\d+)/) || [])[1], tab = gid ? "&gid=" + gid : "";   // 網址有 gid 就讀那個工作表，沒有就讀第一個
   const keep = "，繼續使用目前的題庫";
   if(!manual && gameStarted()){ sheetMsg("比賽進行中，題庫維持開賽時的版本。要更新請按「從試算表更新」"); toast("比賽進行中，題庫維持開賽時的版本，沒有從試算表更新"); return; }
   if(manual) sheetMsg("從試算表讀取中…");
@@ -1153,8 +1189,7 @@ async function sheetSync(manual){ const id = sheetId(SHEETURL); if(!id) return; 
   catch(e){ const t = "題庫沒有從試算表更新：" + e.message + keep; sheetMsg(t, true); toast(t, true); return; }
   IMGC.clear(); AUDC.clear(); saveBank(); bankDirty = true;
   const t = !BANK.length ? "出題表單還沒有收到題目，題庫目前是空的" : `已從出題表單同步 ${BANK.length} 題（${new Date().toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"})}）`; sheetMsg(t); if(manual || !$("#bank").hidden) renderBank(); else toast(t);
-  warmUrls();
-  const bad = await badSongs(), warn = [...BANK.warn, ...bad];
+  const warn = BANK.warn;   // 照片和 YouTube 影片由準備題庫的進度表檢查
   if(warn.length){ const w = `${t}。有 ${warn.length} 個問題：${warn.slice(0,3).join("　")}${warn.length > 3 ? "　…" : ""}`; sheetMsg(w, true); toast(w, true, 20000); }
   if(scene && scene.home && !trans) setScene(Home()); }
 $("#bkSheetSync").onclick = () => {
