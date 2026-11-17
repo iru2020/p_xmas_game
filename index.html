@@ -34,7 +34,10 @@ html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;backgrou
 #spList input.tn{font-weight:900;border-color:#5fd0ff}
 #spList input:focus{outline:2px solid #D9B26A;outline-offset:1px}
 #setup.edit .h,#setup.edit .cnt{display:none}
-#setup.edit #spList li{grid-template-columns:auto minmax(0,1fr)}
+#setup.edit #spList li{grid-template-columns:auto minmax(0,1fr) auto}
+#spList .sc{display:flex;gap:8px;align-items:center}
+#spList .sc b{font-family:Orbitron,sans-serif;font-size:22px;color:#fff;min-width:34px;text-align:center}
+#spList .sc i{font-style:normal;font-size:13px;color:#D9B26A;min-width:30px}
 @media (max-width:720px){#spList .f{grid-template-columns:repeat(2,minmax(0,1fr))}#spList .f .tn{grid-column:1/-1}}
 #setup .act{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px}
 #setup .go,#setup .ghost{padding:12px 26px;border-radius:12px;font-weight:900;font-size:17px;transition:transform .1s}
@@ -544,7 +547,7 @@ function bossMusic(on){
   if(!on) return; const c = A(); if(!c) return;
   const out = c.createGain(); out.gain.value = .8*CFG.music; out.connect(c.destination); BOSS.out = out;
   let i = 0, next = c.currentTime + .08; BOSS.t0 = next;
-  BOSS.timer = setInterval(() => { out.gain.value = muted ? 0 : .8*CFG.music; while(next < c.currentTime + .3){ bossStep(c, out, next, i++); next += BSTEP; } }, 50); }
+  BOSS.timer = setInterval(() => { out.gain.value = muted || paused ? 0 : .8*CFG.music; while(next < c.currentTime + .3){ bossStep(c, out, next, i++); next += BSTEP; } }, 50); }
 function saw2(c,dest,f,t,d){ osc(c,dest,"sawtooth",f*1.004,t,d); osc(c,dest,"sawtooth",f*.996,t,d); }   // 兩個微微走音的鋸齒波疊在一起，聲音比較厚
 function bossStep(c,out,t,i){ const k = i % 16, bar = Math.floor(i/16) % 4, phrase = Math.floor(i/64), ch = BCH[bar];
   if(k % 4 === 0){ const gk = env(c,out,t,{a:.001,d:.22,v:.7}); osc(c,gk,"sine",170,t,.22,42); hit(c,out,t,{d:.012,type:"highpass",f:3000,v:.08}); }   // 四拍大鼓
@@ -700,8 +703,9 @@ function openConfirm(o){
 function openPause(){ if(modal) return; wasPlaying = !MUSIC.paused; MUSIC.pause(); TTS && TTS.pause(); paused = true; scene && scene.onPause && scene.onPause(true); SFX.pop();
   const mk = (t,c) => new Pad({pill:[1.15,.62],color:c,custom:lbl([t])});
   modal = {title:"已暫停", sub:"", pause:true, pads:[mk("繼續",C.green), mk("重新來過",C.coral), mk("返回選題","#5b6b7c")], acts:[closeGuard, () => { closeGuard(); restartGame(); }, () => { closeGuard(); backToHome(); }]}; layoutModal(); }
-function restartGame(){ if(CUR && CUR.make) go(CUR.make); }
-function backToHome(){ if(CUR && CUR.preview){ returnFromPreview(); return; } if(CUR) releaseQuestion(CUR.q); go(Home); }   // 返回不算選過這題
+function restartGame(){ const o = OT && scene.ot; if(o){ o.undo(); go(() => OTBuzz(o.entry)); return; } if(CUR && CUR.make) go(CUR.make); }   // 加賽：分數還原，同一題重出
+function backToHome(){ const o = OT && scene.ot; if(o){ o.undo(); if(OT.preview) return returnFromPreview(); OT.used = OT.used.filter(id => id !== o.entry.id); go(OTPick); return; }   // 加賽：分數還原，這題放回去重新抽分類
+  if(CUR && CUR.preview){ returnFromPreview(); return; } if(CUR) releaseQuestion(CUR.q); go(Home); }   // 返回不算選過這題
 const openGuard = () => openConfirm({title:"要重新整理嗎？", sub:"目前的遊戲進度會消失", no:["繼續","遊戲"], yes:["重新","整理"], pause:true, onYes:() => { modal.leaving = true; location.reload(); }});
 function layoutModal(){ if(!modal) return; const n = modal.pads.length, r = Math.min(W*.17, H*.15, 76*u*1.1, (W-24)/(n*2.9+.3)); modal.pads.forEach((p,i) => { p.r = r; p.x = W/2 + (i-(n-1)/2)*r*2.9; p.y = H/2 + r*.75; }); }
 function closeGuard(){ const m = modal; modal = null; paused = false; downPad = null; if(m && m.pause && TTS) TTS.resume(); if(m && m.pause && scene && scene.onPause) scene.onPause(false); if(m && m.pause && wasPlaying && scene && scene.guard) MUSIC.play().catch(() => {}); }
@@ -780,7 +784,7 @@ function activate(d){
   if(d === gearBtn){ openCfg(); return; }
   if(d === pauseG){ openPause(); return; }
   if(d === restartG){ openConfirm({title:"要重新來過嗎？", sub:"這一題會從頭開始，目前進度不保留", no:["取消"], yes:["重新來過"], pause:true, onYes:() => { closeGuard(); restartGame(); }}); return; }
-  if(d === backG){ openConfirm({title:"要返回選題嗎？", sub:"這一題會放回題庫，可以重新選", no:["取消"], yes:["返回"], pause:true, onYes:() => { closeGuard(); backToHome(); }}); return; }
+  if(d === backG){ openConfirm({title:"要返回選題嗎？", sub:OT ? (OT.preview ? "回到題庫" : "這一題會放回去，重新抽分類") : "這一題會放回題庫，可以重新選", no:["取消"], yes:["返回"], pause:true, onYes:() => { closeGuard(); backToHome(); }}); return; }
   if(!d.dim || d.onDim) scene.onPad && scene.onPad(d); else d.pop();
 }
 cv.addEventListener("pointerdown", e => { cv.focus({preventScroll:true}); A(); const p = pos(e); ptr = p; const d = hitPad(p);
@@ -797,8 +801,9 @@ const eyebrow = (s,y) => { g.save(); g.font = `700 ${12*u+2}px ${DISP}`; if("let
   txt(s,W/2,y,{size:12*u+2,f:DISP,c:C.coral,ls:6}); g.fillStyle = C.gold; g.fillRect(W/2-w/2-46,y,34,1.5); g.fillRect(W/2+w/2+12,y,34,1.5); };
 const eyY = () => insT + (W < 520 ? 58 : 22);   // 窄螢幕時 eyebrow 下移，避開右上角的靜音鈕
 const hdrSz = () => Math.max(28, Math.min(W*.1, 60*u+8, H*.13));
-const hdrBottom = sz => eyY()+34+sz*.58+sz*.5;
-function header(eb,t,sz){ const ey = eyY(), ty = ey+34+sz*.58; eyebrow(eb,ey); title(t,ty,sz); return ty+sz*.5; }   // 回傳標題底部 y
+const hdrTy = sz => Math.max(eyY()+34+sz*.58, muteBtn.y + muteBtn.r + 12 + sz*.55);   // 標題中線：放在右上角按鈕下面，長標題才不會被按鈕蓋住
+const hdrBottom = sz => hdrTy(sz)+sz*.5;
+function header(eb,t,sz){ const ey = eyY(), ty = hdrTy(sz); eyebrow(eb,ey); title(t,ty,sz); return ty+sz*.5; }   // 回傳標題底部 y
 const blink = (s,y) => txt(s,W/2,y,{size:13*u+2,f:DISP,c:C.fg,ls:5,a:.45+.4*Math.sin(T*4)});
 
 // ===== 場景 4：街機開場（形容詞散落在畫面各處，大標題收尾；點一下略過）=====
@@ -1241,6 +1246,7 @@ function qTimer(onUp){ const t = {t0:0, on:false, up:false, last:0, fz:null,
   left(){ return t.on ? Math.max(0, QTIME - (T - t.t0)) : t.up ? 0 : t.fz; },
   start(){ t.t0 = T; t.on = true; t.up = false; t.last = 0; t.fz = null; },
   stop(){ if(t.on){ t.fz = t.left(); t.on = false; } },
+  resume(){ if(!t.on && !t.up && t.fz != null){ t.t0 = T - (QTIME - t.fz); t.on = true; t.fz = null; } },   // 從停下的秒數繼續
   step(){ if(!t.on) return; const l = QTIME - (T - t.t0), sec = Math.ceil(l);
     if(l > 0 && sec <= 10 && sec !== t.last){ t.last = sec; tone(sec <= 3 ? 1320 : 990, 0, .09, "square", .08); redFlash = Math.max(redFlash, sec <= 3 ? .24 : .12); }
     if(l <= 0){ t.on = false; t.up = true; tone(150,0,.8,"sawtooth",.22,60); tone(110,0,.8,"square",.12,55); noise(0,.35,600,.3); shake = 16; redFlash = .55; onUp(); } },
@@ -1277,6 +1283,11 @@ async function playlistIds(){ const id = listId(SONGLIST); if(!id) return []; if
 async function nextListSong(){ const ids = (await playlistIds()).filter(v => !PL.bad.has(v)); if(!ids.length) return null;
   let left = ids.filter(v => !PL.used.has(v)); if(!left.length){ PL.used.clear(); left = ids; }   // 整份歌單都出過了才重新開始
   const v = left[Math.floor(Math.random()*left.length)]; PL.used.add(v); return v; }
+// 猜歌的時間軸（一般答題與加賽共用）：顯示播放進度，點一下或拖到哪裡就跳到那裡
+function drawTimeline(tl, pl){ const pos = pl.pos(), d = pl.dur(), f = d ? clamp(pos/d,0,1) : 0, mmss = v => Math.floor(v/60)+":"+String(Math.floor(v%60)).padStart(2,"0");
+  g.fillStyle = "rgba(255,255,255,.18)"; g.fillRect(tl.x,tl.y,tl.w,tl.h); g.fillStyle = C.gold; g.fillRect(tl.x,tl.y,tl.w*f,tl.h); g.fillStyle = "#fff"; g.beginPath(); g.arc(tl.x+tl.w*f,tl.y+tl.h/2,tl.h*.9,0,7); g.fill();
+  txt(d ? `${mmss(pos)} / ${mmss(d)}` : "載入中…",tl.x+tl.w,tl.y+tl.h+14,{size:Math.max(11,12*u+1),f:DISP,c:C.fg,align:"right",a:.85}); if(tl.w >= 300) txt("點時間軸可以跳到想聽的位置",tl.x,tl.y+tl.h+14,{size:Math.max(11,12*u),w:500,c:C.fg,align:"left",a:.6}); }
+function seekTimeline(tl, pl, x, y){ if(tl && x >= tl.x-10 && x <= tl.x+tl.w+10 && y >= tl.y-18 && y <= tl.y+tl.h+18) pl.seek(clamp((x-tl.x)/tl.w,0,1)); }
 function songPlayer(){ let r = null, el = null, yt = null, bus = null, playing = false, pos0 = 0, t0 = 0, dur = 0, gen = 0;
   const notes = () => r.notes || SONGS[0].notes, nDur = () => notes().reduce((a,[,b]) => a + b*.3, 0), yp = () => yt && YTP.p && YTP.p.getDuration ? YTP.p : null;
   const stopNodes = () => { if(el) el.pause(); if(yp()) yp().pauseVideo(); if(bus){ const c = bus.context, b = bus; bus = null; b.gain.setTargetAtTime(0,c.currentTime,.015); setTimeout(() => { try{ b.disconnect(); }catch(e){} }, 200); } };
@@ -1362,7 +1373,7 @@ function Quiz(kind = "quiz"){
     enter(){ got = RL.map(() => false); ask(); },
     exit(){ if(pl) pl.stop(); },
     onPause(on){ if(!pl) return; if(on){ resumeAfter = pl.playing; pl.pause(); } else if(resumeAfter){ resumeAfter = false; pl.play(); } },
-    onBg(x,y){ if(!song || !["ask","shown","judged","timeout"].includes(phase)) return; const t = s.tl; if(x >= t.x-10 && x <= t.x+t.w+10 && y >= t.y-18 && y <= t.y+t.h+18) pl.seek(clamp((x-t.x)/t.w,0,1)); },
+    onBg(x,y){ if(!song || !["ask","shown","judged","timeout"].includes(phase)) return; seekTimeline(s.tl, pl, x, y); },
     onPad(p){
       if(song && p === playB && phase !== "ask"){ SFX.pop(); pl.toggle(); return; }
       if(phase === "timeout"){ if(p === endB){ SFX.pop(); phase = "wait"; nextAt = T; setPads(); } return; }
@@ -1394,9 +1405,7 @@ function Quiz(kind = "quiz"){
           ls.forEach((l,i) => txt(l,mp.x+mp.w/2,mp.y+mp.h*.56+(i-(ls.length-1)/2)*fs*1.25,{size:fs,w:900,c:C.gold,glow:12,maxW:mp.w-24,stroke:"rgba(0,0,0,.6)",sw:5})); }
         else txt(on ? "♪ 播放中" : "⏸ 已暫停",mp.x+mp.w/2,mp.y+mp.h*.12,{size:Math.max(12,mp.h*.13),w:900,c:"#fff"});
         if(pl.err) wrap(pl.err, mp.w-24, `900 ${Math.max(13,mp.h*.1)}px ${CJK}`).forEach((l,i,a) => txt(l,mp.x+mp.w/2,mp.y+mp.h*.5+(i-(a.length-1)/2)*Math.max(13,mp.h*.1)*1.3,{size:Math.max(13,mp.h*.1),w:900,c:"#ff9a9a",stroke:"rgba(0,0,0,.8)",sw:5}));
-        const tl = s.tl, pos = pl.pos(), d = pl.dur(), f = d ? clamp(pos/d,0,1) : 0, mmss = v => Math.floor(v/60)+":"+String(Math.floor(v%60)).padStart(2,"0");   // 時間軸：點一下可以跳到那裡
-        g.fillStyle = "rgba(255,255,255,.18)"; g.fillRect(tl.x,tl.y,tl.w,tl.h); g.fillStyle = C.gold; g.fillRect(tl.x,tl.y,tl.w*f,tl.h); g.fillStyle = "#fff"; g.beginPath(); g.arc(tl.x+tl.w*f,tl.y+tl.h/2,tl.h*.9,0,7); g.fill();
-        txt(d ? `${mmss(pos)} / ${mmss(d)}` : "載入中…",tl.x+tl.w,tl.y+tl.h+14,{size:Math.max(11,12*u+1),f:DISP,c:C.fg,align:"right",a:.85}); if(tl.w >= 300) txt("點時間軸可以跳到想聽的位置",tl.x,tl.y+tl.h+14,{size:Math.max(11,12*u),w:500,c:C.fg,align:"left",a:.6}); }
+        drawTimeline(s.tl, pl); }
       },
     over(){   // 結果文字畫在九宮格、禮物盒上面，不會被綠框蓋住
       if(banner){ const bs = Math.max(22,30*u+6), ls = wrap(banner.text, W-48, `900 ${bs}px ${CJK}`).slice(0,3);   // YouTube 標題常常很長：換行顯示，不要縮成很小的字
@@ -1859,7 +1868,7 @@ function OTPick(){
 const OT_TYPES = ["quiz","tf","sort","song","grid"];
 function otRound(q){   // 把各題型轉成搶答用的格式：q 題目、opts 題目下面的補充行、answer 答案卡的文字（song 播歌、grid 顯示九宮格）
   const one = L => L[Math.floor(Math.random()*L.length)];
-  if(q.type === "quiz"){ const r = pick1(q.qs, QS, q)[0]; return {q:r.q, opts:[], boxes:r.o, a:r.a, answer:`${"ABCD"[r.a]}　${r.o[r.a]}`, sub:`答案：${"ABCD"[r.a]}　${r.o[r.a]}`}; }
+  if(q.type === "quiz"){ const r = pick1(q.qs, QS, q)[0]; return {q:r.q, opts:[], boxes:r.o, a:r.a, answer:`${"ABCD"[r.a]}　${r.o[r.a]}`}; }   // 公布時打開的禮物盒就是答案，不另外寫一行
   if(q.type === "tf"){ const r = pick1(q.rounds, ROUND_DATA.tf, q)[0]; return {q:r.q, opts:["這句話是真的還是假的？"], answer:r.a ? "真" : "假"}; }
   if(q.type === "sort"){ const r = pick1(q.rounds, ROUND_DATA.sort, q)[0]; const idx = r.items.map((_,i) => i); let o; do{ o = shuf(idx); }while(idx.length > 1 && o.every((v,i) => v === i));   // 打亂到和正確順序不一樣，免得剛好排對漏出答案
     const cards = o.map((k,i) => ({text:r.items[k], ord:k, i})); return {q:r.q, opts:[], cards, answer:r.items.join(" → "), sub:"正確順序：" + cards.slice().sort((a,b) => a.ord-b.ord).map(c => "ABCDE"[c.i]).join(" → ")}; }
@@ -1869,48 +1878,47 @@ function otRound(q){   // 把各題型轉成搶答用的格式：q 題目、opts
   return {...pick1(q.rounds, BUZZ0, q)[0], opts:[]}; }
 function OTBuzz(entry){
   if(!OT.used.includes(entry.id)) OT.used.push(entry.id);
-  const ids = OT.ids, RL = [otRound(entry)], c = CATS[entry.cat] || CATS[0], pl = songPlayer(), pv = !!OT.preview, backB = pv ? backPad() : null;   // pv：題庫的「預覽加賽版」
-  let qi = -1, q, phase = "ask", who = -1, out = [], banner = null, qLines = [], oLines = [], teamB = [], okB, noB, endB, winB, moreB, playB, jumpB, ansAt = 0;   // ansAt：公布答案的時間（0 = 還沒公布）
+  const ids = OT.ids, RL = [otRound(entry)], c = CATS[entry.cat] || CATS[0], pl = songPlayer(), pv = !!OT.preview;   // pv：題庫的「預覽加賽版」
+  let qi = -1, q, phase = "ask", who = -1, out = [], banner = null, qLines = [], oLines = [], teamB = [], okB, noB, endB, winB, moreB, playB, jumpB, fixB, pickB, last = null, scored = false, resumeAfter = false, ansAt = 0;   // last：上一個被判答錯的隊伍（更正用）。scored：這題已經加了分   // ansAt：公布答案的時間（0 = 還沒公布）
   const tm = qTimer(timeUp), TC = ["#e0334b","#ff8a3d","#8b7bff","#4aa3df","#35c98a","#D9B26A"];
-  const setPads = L => { s.pads = [...L, ...(q && q.song ? [playB, jumpB] : []), ...(backB ? [backB] : [])]; s.layout(); };   // 猜歌：播放、換段落一直都在
-  const s = {noBgm:true, guard:true, pads:[],
-    layout(){ const cx = W/2, mw = Math.min(W-32-2*(48*u+30), 820); s.qy = insT + 120*u + 60;
-      const bot = H - insB - (W < 700 ? 104 : 60), list = s.pads.filter(p => p !== playB && p !== jumpB && p !== backB), pr = clamp(Math.min((W-32)/(list.length*2.9+.2), 46*u+14), 22, 64);
-      list.forEach((p,i) => { p.r = pr; p.x = cx + (i-(list.length-1)/2)*pr*2.9; p.y = bot - pr*.55; }); s.bnY = bot - pr*1.6 - 30;
-      const big = q && (q.grid || q.song || q.boxes || q.cards), gap = big ? Math.max(56, 60*u) : 30, room = (!q ? 0 : q.grid ? Math.min(H*.36, 320) : q.boxes ? Math.min(H*.34, 260) : q.cards ? Math.min(H*.42, q.cards.length*56) : q.song ? 130 : Math.max(96,110*u)*.9) + gap;   // 題目下面要留給九宮格、猜歌或答案卡的高度
-      let qs = Math.max(20, 30*u+4), os;
+  const setPads = L => { s.pads = [...L, ...(q && q.song ? [playB, jumpB] : [])]; s.layout(); };
+  const askPads = () => [...teamB.filter((b,k) => !out.includes(ids[k])), ...(last != null ? [fixB] : [])];   // 還能搶的隊伍；剛判過答錯時多一個「更正」   // 猜歌：播放、換段落一直都在
+  const s = {noBgm:true, guard:true, game:true, pads:[], ot:{entry, undo:() => unscore()},
+    layout(){ const cx = W/2, short = W >= H && H < 520, mw = Math.min(W-32-2*(48*u+30), 720); s.hy = short ? insT+34 : Math.max(insT+62*u+14, W < 700 ? muteBtn.y + muteBtn.r + 16 : 0); s.qy = s.hy + (short ? 34 : 50*u+26);   // 和一般答題同樣的位置：hy 是一般答題放進度格子的那一行（窄螢幕時移到右上角按鈕下面），qy 是題目
+      const bot = H - insB - (W < 700 ? 104 : 60), list = s.pads.filter(p => p !== playB && p !== jumpB), pr = clamp(Math.min((W-32)/(list.length*2.9+.2), 40*u+14), 20, 56);
+      list.forEach((p,i) => { p.r = pr; p.x = cx + (i-(list.length-1)/2)*pr*2.9; p.y = bot - pr*.55; }); s.bnY = bot - pr*1.4 - 22;
+      const big = q && (q.grid || q.song || q.boxes || q.cards), gap = big && !(q && q.boxes) ? Math.max(48, 52*u) : 30, room = (!q ? 0 : q.grid ? Math.min(H*.3, 220) : q.boxes ? Math.min(H*.22, 150) : q.cards ? Math.min(H*.3, q.cards.length*40) : q.song ? 220 : Math.max(96,110*u)*.9) + gap;   // 選項最少要有的高度：題目太長、放不下這麼多時才把題目字縮小
+      let qs = Math.max(17, 24*u), os;   // 和一般答題的題目一樣大
       for(;;){ os = Math.max(16, qs*.7); qLines = q ? wrap(q.q, mw, `900 ${qs}px ${CJK}`) : []; oLines = q ? q.opts.flatMap(o => wrap(o, mw, `700 ${os}px ${CJK}`)) : [];   // 題目太長就把字縮小，直到放得下
-        if(s.qy + qLines.length*qs*1.35 + oLines.length*os*1.45 + room <= s.bnY || qs <= 18) break; qs *= .94; }
+        if(s.qy + qLines.length*qs*1.35 + oLines.length*os*1.45 + room <= s.bnY || qs <= 15) break; qs *= .94; }
       s.qs = qs; s.os = os;
       s.midTop = s.qy + (qLines.length - .5)*qs*1.35 + oLines.length*os*1.45 + 14; s.midBot = s.bnY - gap;   // 題目和橫幅之間：九宮格、猜歌、答案卡畫在這裡
-      if(backB){ backB.x = 16 + backB.r; backB.y = H - insB - 16 - backB.r; }
-      if(playB){ const r = clamp(30*u+10, 20, 44); [playB, jumpB].forEach((p,i) => { p.r = r; p.x = cx + (i ? 1 : -1)*r*1.6; p.y = s.midBot - r*.6; }); } },
+      if(playB){ const r = clamp(30*u+10, 20, 44); [playB, jumpB].forEach((p,i) => { p.r = r; p.x = cx + (i ? 1 : -1)*r*1.6; p.y = s.midBot - r*.6; }); const tw = Math.min((W-32)*.8, 460); s.tl = {x:cx-tw/2, y:playB.y - r - 40, w:tw, h:12}; } },   // tl：猜歌的時間軸，在播放鈕上面
     enter(){ ask(); },
     exit(){ pl.stop(); },
+    onBg(x,y){ if(q && q.song) seekTimeline(s.tl, pl, x, y); },
+    onPause(on){ if(!q || !q.song) return; if(on){ resumeAfter = pl.playing; pl.pause(); } else if(resumeAfter){ resumeAfter = false; pl.play(); } },
     onPad(p){
-      if(p === backB){ SFX.pop(); returnFromPreview(); return; }
       if(p === playB){ pl.toggle(); return; } if(p === jumpB){ pl.jump(); return; }
-      if(phase === "ask"){ const i = teamB.indexOf(p); if(i < 0) return; SFX.boom(); shake = 8; who = ids[i]; phase = "answer"; banner = {text:`【${S.teams[who].name}】搶到了！`, color:C.gold}; if(q.song) pl.pause(); setPads([okB, noB]); return; }   // 有人搶到就先停歌
-      if(phase === "answer"){ if(p === okB) return win();
-        if(p === noB){ SFX.bad(); shake = 12; redFlash = .35; out.push(who);
-          if(out.length >= ids.length){ tm.stop(); phase = "dead"; banner = {text:"全部答錯！", color:C.red}; reveal(); setPads([endB]); }
-          else { phase = "ask"; banner = {text:`【${S.teams[who].name}】答錯，這題不能再搶`, color:C.red}; if(q.song) pl.play(); setPads(teamB.filter((b,k) => !out.includes(ids[k]))); } } return; }
+      if(p === fixB){ SFX.pop(); return fix(); }
+      if(phase === "ask"){ const i = teamB.indexOf(p); if(i < 0) return; SFX.boom(); shake = 8; who = ids[i]; last = null; tm.stop(); phase = "answer"; banner = {text:`【${S.teams[who].name}】搶到了！`, color:C.gold}; if(q.song) pl.pause(); setPads([okB, noB, pickB]); return; }   // 有人搶到就先停歌
+      if(phase === "answer"){ if(p === okB) return win(); if(p === noB) return wrong();
+        if(p === pickB){ SFX.pop(); tm.resume(); phase = "ask"; who = -1; banner = null; if(q.song) pl.play(); setPads(askPads()); } return; }   // 選錯隊伍：回到還沒有人搶到
       if((phase === "timeout" || phase === "dead") && p === endB){ SFX.pop(); qi >= RL.length-1 ? soldOut() : ask(); return; }
       if(phase === "out" && p === moreB){ SFX.pop(); if(pv) returnFromPreview(); else go(OTPick); return; }
       if(phase === "won" && p === winB){ SFX.pop(); if(pv) return returnFromPreview(); const auto = OT.auto; OT = null; go(() => Final(auto)); } },
     update(){ tm.step(); pl.step(); },
     draw(){
-      eyebrow(`${c.en}・SUDDEN DEATH`, eyY()); txt(otVs(), W/2, eyY() + 40*u + 6, {size:Math.max(16,24*u+4), w:900, c:C.gold, maxW:W-32-2*(48*u+30), glow:12, gc:"#ff2d3d"});
-      if(q && phase !== "out"){ txt(`${entry.title}`, W/2, s.qy - s.qs*1.1, {size:Math.max(12,13*u+2), w:700, c:"#ffb0b0", ls:2});
+      txt(`加賽　${otVs()}`, W/2, s.hy, {size:Math.max(14,16*u+2), w:900, c:C.gold, maxW:W-32-2*(48*u+30), glow:10, gc:"#ff2d3d"});   // 頂端只留一行對戰隊伍
+      if(q && phase !== "out"){
         qLines.forEach((l,i) => txt(l, W/2, s.qy + i*s.qs*1.35, {size:s.qs, w:900, c:"#fff", stroke:"rgba(0,0,0,.7)", sw:7}));
         oLines.forEach((l,i) => txt(l, W/2, s.qy + (qLines.length - .3)*s.qs*1.35 + (i+.5)*s.os*1.45, {size:s.os, w:700, c:"#ffe3b0", stroke:"rgba(0,0,0,.7)", sw:5}));
         if(q.grid) drawGrid(); if(q.boxes) drawBoxes(); if(q.cards) drawCards();
-        if(q.song && !ansAt){ const my = (s.midTop + s.midBot)/2 - 20; txt("♪", W/2, my, {size:Math.max(40,64*u), w:900, c:C.gold, a:pl.playing ? .55 + pulse*.45 : .35, glow:pl.playing ? 18 : 0});
-          txt(pl.err || (pl.playing ? "播放中" : "已暫停"), W/2, my + Math.max(36,46*u), {size:Math.max(13,15*u+2), w:700, c:pl.err ? "#ff9aa8" : "#ffd0d0", maxW:W-32}); } }
-      if(phase === "ask" && !banner) txt("先舉手的隊伍，請主持人點選", W/2, s.bnY, {size:Math.max(15,18*u+2), w:700, c:"#ffd0d0", a:.6 + pulse*.4});
+        if(q.song && s.tl){ if(!ansAt) txt(pl.err || (pl.playing ? "♪ 播放中" : "⏸ 已暫停"), W/2, (s.midTop + s.tl.y)/2, {size:Math.max(18,26*u), w:900, c:pl.err ? "#ff9aa8" : C.gold, a:pl.err ? 1 : pl.playing ? .6 + pulse*.4 : .5, glow:pl.playing ? 14 : 0, maxW:W-32});
+          drawTimeline(s.tl, pl); } }
       if(banner){ txt(banner.text, W/2, s.bnY, {size:Math.max(22,32*u+6), w:900, c:banner.color, stroke:"rgba(0,0,0,.8)", sw:8, maxW:W-32});
         if(banner.sub) txt(banner.sub, W/2, s.bnY - Math.max(36,40*u), {size:Math.max(16,20*u+2), w:900, c:"#fff", stroke:"rgba(0,0,0,.8)", sw:6, maxW:W-32}); }
-      if(ansAt && !q.grid && !q.boxes && !q.cards){ const k = easeOut(clamp((T-ansAt)/.35,0,1)), pw = Math.min(W-32,560), ph = Math.max(96,110*u), cy = q.song ? s.midTop + (s.midBot - s.midTop)*.38 : (s.midTop + s.midBot)/2, as = Math.max(26,40*u+6);   // 答案卡：答對、全部答錯或時間到才公布（答錯時不公布，其他隊還能搶）
+      if(ansAt && !q.grid && !q.boxes && !q.cards){ const k = easeOut(clamp((T-ansAt)/.35,0,1)), pw = Math.min(W-32,560), ph = Math.max(96,110*u), cy = q.song && s.tl ? (s.midTop + s.tl.y)/2 - 6 : (s.midTop + s.midBot)/2, as = Math.max(26,40*u+6);   // 答案卡：答對、全部答錯或時間到才公布（答錯時不公布，其他隊還能搶）
         g.save(); g.globalAlpha = k; g.translate(W/2,cy); g.scale(.6+.4*k,.6+.4*k); g.fillStyle = "rgba(20,4,10,.88)"; g.strokeStyle = C.gold; g.lineWidth = 4; g.shadowColor = C.gold; g.shadowBlur = 24; g.beginPath(); g.roundRect(-pw/2,-ph/2,pw,ph,16); g.fill(); g.stroke(); g.restore();
         txt("答案", W/2, cy - ph*.26, {size:Math.max(13,14*u+2), w:700, c:"#ffd0d0", ls:4, a:k}); txt(q.answer, W/2, cy + ph*.12, {size:as, w:900, c:C.gold, maxW:pw-32, glow:16, a:k, sc:.6+.4*k}); }
       tm.draw(); } };
@@ -1920,9 +1928,9 @@ function OTBuzz(entry){
       if(!show) return;
       if(r.mode === "name"){ const hh = sz*.42; g.save(); g.beginPath(); g.roundRect(x-sz,y-sz,sz*2,sz*2,sz*.14); g.clip(); g.fillStyle = "rgba(4,12,28,.8)"; g.fillRect(x-sz,y+sz-hh,sz*2,hh); g.restore(); txt(r.names[i] || "", x, y+sz-hh/2, {size:Math.max(11,sz*.26), w:900, c:C.gold, maxW:sz*1.84}); }
       else if(hit){ g.save(); g.strokeStyle = C.green; g.lineWidth = 5; g.beginPath(); g.roundRect(x-sz,y-sz,sz*2,sz*2,sz*.14); g.stroke(); g.restore(); } }); }
-  function drawBoxes(){ const top = s.midTop, bot = s.midBot, pt = W < H, cols = pt ? 2 : 4, rows = pt ? 2 : 1, r = Math.max(28, Math.min((W-32)/(cols*2.3), (bot-top)/(2.85 + (rows-1)*2.45), 100*u*1.1)), o = ansAt ? easeOut(clamp((T-ansAt)/.5,0,1)) : 0;   // 和一般答題一樣的四個禮物盒，只是不能點。盒子上方留 2.15 倍半徑，打開時的星星和「正確答案」才不會蓋到題目
+  function drawBoxes(){ const top = s.midTop, bot = s.midBot, pt = W < H, cols = pt ? 2 : 4, rows = pt ? 2 : 1, r = Math.max(28, Math.min((W-32)/(cols*2.3), (bot-top)/(rows*2.3), 100*u*1.1)), o = ansAt ? easeOut(clamp((T-ansAt)/.5,0,1)) : 0;   // 和一般答題一樣大小與位置的四個禮物盒，只是不能點
     q.boxes.forEach((t,i) => { const c = i%cols, rw = Math.floor(i/cols), hit = i === q.a;
-      giftPad(W/2 + (c-(cols-1)/2)*r*2.3, top + r*2.15 + rw*r*2.45, r, {color:[C.cyan,C.violet,C.gold,C.green][i], idx:i, text:t, open:ansAt && hit ? o : 0, rv:ansAt && hit ? o : 0, state:ansAt && hit ? "win" : "", dim:!!ansAt && !hit}); }); }
+      giftPad(W/2 + (c-(cols-1)/2)*r*2.3, (top+bot)/2 + (rw-(rows-1)/2)*r*2.3, r, {color:[C.cyan,C.violet,C.gold,C.green][i], idx:i, text:t, open:ansAt && hit ? o : 0, rv:ansAt && hit ? o : 0, state:ansAt && hit ? "win" : "", dim:!!ansAt && !hit}); }); }
   function drawCards(){ const n = q.cards.length, w = Math.min((W-32)*.8, 560), av = (s.midBot - s.midTop)/n, h = clamp(Math.min(av-8, av*.85), 16, 64), pitch = Math.max(h+3, Math.min(h+8, av)), shown = ansAt > 0;   // 和一般答題一樣的排序卡片：公布時排回正確順序
     q.cards.forEach(c => { const ty = s.midTop + ((shown ? c.ord : c.i)+.5)*pitch; c.y = c.y == null ? ty : c.y + (ty - c.y)*.15; const x = W/2, y = c.y;
       g.fillStyle = "#16324f"; g.strokeStyle = shown ? C.gold : C.cyan; g.lineWidth = 3; g.beginPath(); g.roundRect(x-w/2,y-h/2,w,h,Math.min(14,h*.25)); g.fill(); g.stroke();
@@ -1930,12 +1938,19 @@ function OTBuzz(entry){
       txt("ABCDE"[c.i],x-w/2+h*.5,y,{size:h*.34,f:DISP,w:900,c:"#06142a"}); txt(c.text,x+h*.3,y,{size:Math.max(11,h*.45),w:900,c:"#fff",maxW:w-h*2}); if(shown) txt(`第 ${c.ord+1}`,x+w/2-h*.55,y,{size:Math.max(12,h*.3),w:900,c:C.gold}); }); }
   function reveal(){ ansAt = T; if(q.sub && banner) banner.sub = q.sub; }   // 九宮格、選擇題、排序：答案寫在橫幅上方，不用答案卡蓋住盒子、卡片或照片
   function ask(){ qi++; q = RL[qi]; phase = "ask"; who = -1; out = []; banner = null; ansAt = 0;
-    teamB = ids.map((ti,k) => miniPad(S.teams[ti].name, TC[k % TC.length])); okB = miniPad("答對",C.green); noB = miniPad("答錯",C.coral); endB = miniPad("答題結束","#5b6b7c");
+    teamB = ids.map((ti,k) => miniPad(S.teams[ti].name, TC[k % TC.length])); okB = miniPad("答對",C.green); noB = miniPad("答錯",C.coral); endB = miniPad("答題結束","#5b6b7c"); fixB = iconPill("back","更正","#5b6b7c"); pickB = miniPad("選錯隊伍","#5b6b7c"); last = null;
     if(q.song){ bossMusic(false); jumpB = iconPill("restart","換段落","#4aa3df"); playB = iconPill(() => pl.playing ? "pause" : "play", () => pl.playing ? "暫停" : "播放", "#4aa3df"); pl.load(q.song); }   // 猜歌時先關掉加賽配樂
     setPads(teamB); tm.start(); SFX.boom(); if(!q.song) speak(q.q); }
   function soldOut(){ phase = "out"; banner = {text:"這一題沒有隊伍答對，還沒分出勝負", color:"#ffd0d0"}; moreB = miniPad(pv ? "回到題庫" : "再抽一題",C.coral); setPads([moreB]); }
-  function win(){ tm.stop(); const t = S.teams[who]; if(!pv){ t.score += 1; S.log.push({run:S.run, team:t.id, q:"加賽", score:1}); save(); }
-    phase = "won"; banner = {text:`【${t.name}】勝出！`, color:C.gold}; reveal(); winB = miniPad(pv ? "回到題庫" : "最終結算",C.gold); setPads([winB]);
+  function wrong(){ SFX.bad(); shake = 12; redFlash = .35; out.push(who); last = who;
+    if(out.length >= ids.length){ tm.stop(); phase = "dead"; banner = {text:"全部答錯！", color:C.red}; reveal(); setPads([fixB, endB]); }
+    else { tm.resume(); phase = "ask"; banner = {text:`【${S.teams[who].name}】答錯，這題不能再搶`, color:C.red}; if(q.song) pl.play(); setPads(askPads()); } }   // 答錯：倒數從搶到時停下的秒數繼續
+  function unscore(){ if(!scored) return; scored = false; const t = S.teams[who]; t.score -= 1; const k = S.log.map(l => l.team === t.id && l.q === "加賽").lastIndexOf(true); if(k >= 0) S.log.splice(k,1); save(); }
+  function fix(){   // 更正：把上一個判定反過來。判答對 → 改成答錯；判答錯 → 改成這隊答對
+    if(phase === "won"){ unscore(); ansAt = 0; return wrong(); }
+    if(last == null) return; out.pop(); who = last; last = null; win(); }
+  function win(){ tm.stop(); const t = S.teams[who]; if(!pv){ t.score += 1; S.log.push({run:S.run, team:t.id, q:"加賽", score:1}); scored = true; save(); }
+    phase = "won"; banner = {text:`【${t.name}】勝出！`, color:C.gold}; reveal(); winB = miniPad(pv ? "回到題庫" : "最終結算",C.gold); setPads([fixB, winB]);
     SFX.win(); shake = 18; for(let k=0;k<6;k++) setTimeout(() => burst(W*(.15+Math.random()*.7),H*.3,60,[C.gold,"#fff","#ff2d3d"],11,1.6,.2), k*180); }
   function timeUp(){ if(phase !== "ask" && phase !== "answer") return; phase = "timeout"; banner = {text:"時間到！沒有隊伍答對", color:C.red}; reveal(); setPads([endB]); }
   return s;
@@ -1944,10 +1959,11 @@ function OTBuzz(entry){
 // ===== 場景 6：最終結算（名次、冠軍、成員）=====
 function Final(auto){
   const ranked = S.teams.slice().sort((x,y) => y.score - x.score), rankOf = t => 1 + S.teams.filter(x => x.score > t.score).length;
-  const cont = auto ? null : new Pad({pill:[1.15,.62],color:"#4aa3df",custom:lbl(["繼續","比賽"])}), reset = new Pad({pill:[1.15,.62],color:"#5b6b7c",custom:lbl(["重新","開始"])}), exp = new Pad({pill:[1.15,.62],color:C.green,custom:lbl(["匯出","成績"])});
+  const adj = new Pad({pill:[1.15,.62],color:"#8b7bff",custom:lbl(["調整","分數"])}), cont = auto ? null : new Pad({pill:[1.15,.62],color:"#4aa3df",custom:lbl(["繼續","比賽"])}), reset = new Pad({pill:[1.15,.62],color:"#5b6b7c",custom:lbl(["重新","開始"])}), exp = new Pad({pill:[1.15,.62],color:C.green,custom:lbl(["匯出","成績"])});
   let t0 = 0;
-  return {calm:true, pads: cont ? [cont, exp, reset] : [exp, reset],
-    layout(){ const r = Math.min(W*.12, H*.09, 58*u*1.1), list = cont ? [cont, exp, reset] : [exp, reset]; list.forEach((p,i) => { p.r = r; p.x = W/2 + (i - (list.length-1)/2)*r*2.5; p.y = H - insB - r*1.3 - 10; }); },
+  const list = [cont, adj, exp, reset].filter(Boolean);
+  return {calm:true, pads:list,
+    layout(){ const r = Math.min(W*.12, H*.09, 58*u*1.1, (W-32)/(list.length*2.5)); list.forEach((p,i) => { p.r = r; p.x = W/2 + (i - (list.length-1)/2)*r*2.5; p.y = H - insB - r*1.3 - 10; }); },
     enter(){ t0 = T; SFX.win(); for(let k=0;k<8;k++) setTimeout(() => burst(W*(.1+Math.random()*.8),H*.25,60,[C.coral,C.gold,C.cyan,"#fff",C.green],10,1.8,.2),k*250); },
     draw(){ const age = T - t0, hb = hdrBottom(hdrSz()); header("FINAL RESULT", "最終結算", hdrSz());
       const champ = ranked[0], padTop = (reset.y - reset.r) - 16, cs = Math.max(18, Math.min(30*u+6, W*.06));
@@ -1962,8 +1978,8 @@ function Final(auto){
         txt(String(t.score), x, y + Math.min(h*.18,40) + Math.min(h*.2,48) + ns*1.25, {size:ns*.95, f:DISP, w:900, c:"#fff", stroke:"rgba(0,0,0,.45)", sw:4});
         memberLines(t.members, podW-16, `500 ${ms}px ${CJK}`).slice(0,3).forEach((l,li) => txt(l, x, y + Math.min(h*.18,40) + Math.min(h*.2,48) + ns*2.4 + li*ms*1.35, {size:ms, w:500, c:"#fff", a:.9, min:1, stroke:"rgba(0,0,0,.35)", sw:3})); });
       if(rest.length) txt(rest.map(t => `${rankOf(t)}. ${t.name} ${t.score}（${t.members.filter(Boolean).join("、")}）`).join("　"), W/2, base + listH/2 + 4, {size:Math.max(12,13*u+2), w:500, c:C.fg, maxW:W-32, a:.9}); },
-    onPad(p){ if(p === cont){ SFX.pop(); go(Home); return; } if(p === exp){ SFX.pop(); exportResults(); return; }
-      openConfirm({title:"要重新開始嗎？", sub:"所有隊伍、分數與已選過的題目都會清除", no:["取消"], yes:["重新","開始"], yesColor:C.red, onYes:() => { closeGuard(); S = fresh(); save(); setScene(Backdrop()); openSetup(false); }}); }};
+    onPad(p){ if(p === cont){ SFX.pop(); go(Home); return; } if(p === adj){ SFX.pop(); openSetup(true, {auto}); return; } if(p === exp){ SFX.pop(); exportResults(); return; }
+      openConfirm({title:"要重新開始嗎？", sub:"分數和選過的題目會清除，隊伍保留，下一步還可以修改", no:["取消"], yes:["重新","開始"], yesColor:C.red, onYes:() => { closeGuard(); S = {...fresh(), teams:S.teams.map(t => ({...t, score:0, used:[]}))}; save(); setScene(Backdrop()); openSetup(false); }}); }};
 }
 const Backdrop = () => ({pads:[], calm:true});
 // 成員名單換行時以「整個名字」為單位，不把一個名字拆到兩行
@@ -1972,12 +1988,12 @@ function memberLines(ms, maxW, font){ g.save(); g.font = font; const out = []; l
   if(line) out.push(line); g.restore(); return out; }
 
 // ===== 分隊設定（DOM）：拖曳排序、改隊名與成員；比賽中再打開只能改名字 =====
-let draft = null, editMode = false, setupDirty = false;
-function openSetup(edit){
-  editMode = edit; draft = JSON.parse(JSON.stringify(S.teams));
+let draft = null, editMode = false, setupDirty = false, setupFrom = null;   // setupFrom：從最終結算打開（調完分數要重新結算）
+function openSetup(edit, from){
+  editMode = edit; setupFrom = from || null; draft = JSON.parse(JSON.stringify(S.teams));
   setupDirty = false; const box = $("#setup"); box.classList.toggle("edit", edit); box.hidden = false; $("#spSave").hidden = edit; $("#spOk").textContent = "";
   $("#spTitle").textContent = edit ? "編輯隊伍" : "分隊設定";
-  $("#spTip").textContent = edit ? "比賽進行中只能修改隊名與成員，答題順序維持不變。" : "拖曳左側把手調整答題順序，隊名與成員可直接修改。";
+  $("#spTip").textContent = edit ? "比賽進行中只能修改隊名、成員與分數，答題順序維持不變。分數用 −／＋ 調整，按「儲存並返回」才生效，並記在得分紀錄裡。" : "拖曳左側把手調整答題順序，隊名與成員可直接修改。";
   $("#spGo").textContent = edit ? "儲存並返回" : "確認，開始比賽"; $("#spCancel").hidden = !edit; $("#spErr").textContent = ""; resetArm(false);
   renderSetup();
 }
@@ -1987,6 +2003,10 @@ function renderSetup(){
     li.innerHTML = `<span class="h" aria-label="拖曳調整順序">⋮⋮</span><b class="no">${i+1}</b><div class="f"><input class="tn" maxlength="12" aria-label="隊名" placeholder="隊名"></div>`;
     const f = li.querySelector(".f"), tn = li.querySelector(".tn"); tn.value = t.name; tn.oninput = () => { t.name = tn.value; setupDirty = true; };
     t.members.forEach((m,k) => { const inp = document.createElement("input"); inp.maxLength = 10; inp.placeholder = `成員 ${k+1}`; inp.setAttribute("aria-label",`${t.name} 成員 ${k+1}`); inp.value = m; inp.oninput = () => { t.members[k] = inp.value; setupDirty = true; }; f.appendChild(inp); });
+    if(editMode){ const orig = (S.teams.find(x => x.id === t.id) || {score:0}).score, sc = document.createElement("div"); sc.className = "sc";
+      sc.innerHTML = `<button class="rb" aria-label="${esc(t.name)} 減 1 分">−</button><b>${t.score}</b><button class="rb" aria-label="${esc(t.name)} 加 1 分">＋</button><i>${t.score === orig ? "" : (t.score > orig ? "+" : "") + (t.score - orig)}</i>`;
+      const [mn, pl] = sc.querySelectorAll("button"); mn.disabled = t.score <= 0;
+      mn.onclick = () => { if(t.score > 0){ t.score--; setupDirty = true; renderSetup(); } }; pl.onclick = () => { t.score++; setupDirty = true; renderSetup(); }; li.appendChild(sc); }
     drag(li.querySelector(".h"), li); list.appendChild(li); });
 }
 function renumber(){ [...$("#spList").children].forEach((li,i) => li.querySelector(".no").textContent = i+1); }
@@ -2003,7 +2023,7 @@ let resetTimer = 0;
 function resetArm(on){ const b = $("#spReset"); clearTimeout(resetTimer); b.dataset.armed = on ? "1" : ""; b.classList.toggle("warn", on); b.textContent = on ? "再按一次，清除全部進度" : "重設全部"; if(on) resetTimer = setTimeout(() => resetArm(false), 3000); }
 $("#spMinus").onclick = () => { if(draft.length > 4){ draft.pop(); setupDirty = true; renderSetup(); } };
 $("#spPlus").onclick = () => { if(draft.length < 6){ draft.push(defTeam(draft.length)); setupDirty = true; renderSetup(); } };
-$("#spCancel").onclick = () => { $("#setup").hidden = true; };
+$("#spCancel").onclick = () => { $("#setup").hidden = true; setupFrom = null; };
 $("#spReset").onclick = () => { if($("#spReset").dataset.armed){ S = fresh(); save(); setScene(Backdrop()); openSetup(false); } else resetArm(true); };
 function checkDraft(){
   draft.forEach(t => { t.name = t.name.trim(); t.members = t.members.map(m => m.trim()); }); $("#spOk").textContent = "";
@@ -2015,9 +2035,12 @@ $("#spSave").onclick = () => { if(!checkDraft()) return; S = {...fresh(), phase:
   $("#spOk").textContent = "已儲存。活動當天打開這個連結，會自動帶入這些隊伍。"; SFX.pop(); };
 $("#spGo").onclick = () => {
   if(!checkDraft()) return;
-  if(editMode){ draft.forEach(d => { const t = S.teams.find(x => x.id === d.id); if(t){ t.name = d.name; t.members = d.members; } }); }
+  if(editMode){ draft.forEach(d => { const t = S.teams.find(x => x.id === d.id); if(!t) return; t.name = d.name; t.members = d.members;
+    const dv = d.score - t.score; if(dv){ t.score = d.score; S.log.push({run:S.run, team:t.id, q:"手動調分", score:dv}); } }); }   // 手動調分記進得分紀錄，匯出成績看得到
   else { S = {...fresh(), phase:"play", teams:draft.map(t => ({...t, score:0, used:[]}))}; }
-  save(); $("#setup").hidden = true; SFX.pop(); setScene(Home());
+  save(); $("#setup").hidden = true; SFX.pop();
+  const f = setupFrom; setupFrom = null; if(f){ go(() => topTie().length > 1 ? Overtime(f.auto) : Final(f.auto)); return; }   // 從最終結算調分：重新判斷要不要加賽
+  setScene(Home());
 };
 
 // ===== 場控碼表（正數）=====
