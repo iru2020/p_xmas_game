@@ -80,6 +80,7 @@ html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;backgrou
 #cfg input[type=range]{grid-column:1/-1;width:100%;accent-color:#D9B26A;height:28px}
 #cfg .row .v{font:700 16px Orbitron,sans-serif;color:#D9B26A;min-width:44px;text-align:right}
 #cfg input[type=checkbox]{width:26px;height:26px;accent-color:#D9B26A}
+#cfg select{font:inherit;font-size:15px;padding:8px 10px;border-radius:10px;background:#16324f;color:#fff;border:1px solid #5fd0ff;max-width:240px}
 #cfg button{font:inherit;cursor:pointer;padding:10px 22px;border-radius:12px;font-weight:900;font-size:16px}
 #cfg .ghost{border:2px solid #5b6b7c;background:transparent;color:#cdd6e0}
 #cfg .go{border:0;background:linear-gradient(180deg,#ff8a73,#F16C5D);color:#fff;box-shadow:0 5px 0 #8d3027}
@@ -210,6 +211,10 @@ html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;backgrou
   <div class="row"><label for="cfgMusic">音樂音量</label><span class="v" id="cfgMusicV"></span><input type="range" id="cfgMusic" min="0" max="100" step="5"></div>
   <div class="row"><label for="cfgSfx">音效音量</label><span class="v" id="cfgSfxV"></span><input type="range" id="cfgSfx" min="0" max="100" step="5"><small>拖動時會播一個音效讓你試聽</small></div>
   <div class="row"><label for="cfgMute">全部靜音</label><input type="checkbox" id="cfgMute"><small>和右上角的喇叭按鈕是同一個開關</small></div>
+  <div class="row"><label for="cfgTts">自動唸題目</label><input type="checkbox" id="cfgTts"><small>題目一出現就用電腦語音唸出來（猜歌不唸）</small></div>
+  <div class="row"><label for="cfgVoice">朗讀聲音</label><select id="cfgVoice"></select><small>列出這台電腦有的中文語音，比賽用的電腦要在那台上面選</small></div>
+  <div class="row"><label for="cfgRate">朗讀語速</label><span class="v" id="cfgRateV"></span><input type="range" id="cfgRate" min="0.8" max="2" step="0.1"></div>
+  <div class="row"><label>試聽</label><button class="ghost" id="cfgSay">唸一句聽聽看</button></div>
   <div class="row"><label for="cfgCalm">減少震動與閃光</label><input type="checkbox" id="cfgCalm"><small>答錯、開場大標題時畫面不震動、不閃紅光，適合怕眼睛不舒服的人</small></div>
   <div class="row"><label for="cfgSw">顯示場控碼表</label><input type="checkbox" id="cfgSw"><small>右下角的正數碼表，不需要時可以隱藏（計時不會停）</small></div>
   <div class="row"><label>題庫</label><button class="ghost" id="cfgBank">查看所有題目</button><small>看每一題的內容與題型，並預覽玩一次</small></div>
@@ -355,11 +360,15 @@ function heart(x,y,s,col){ g.save(); g.translate(x,y); g.scale(s/20,s/20); g.fil
   g.beginPath(); g.moveTo(0,8); g.bezierCurveTo(-14,-2,-8,-14,0,-6); g.bezierCurveTo(8,-14,14,-2,0,8); g.fill(); g.restore(); }
 
 // ===== 音效（Web Audio 合成，零外部音檔）=====
-const CFG_DEF = {music:.6, sfx:.8, calm:false, sw:true}, CFG = Object.assign({}, CFG_DEF);
+const CFG_DEF = {music:.6, sfx:.8, calm:false, sw:true, tts:true, voice:"", rate:1.3}, CFG = Object.assign({}, CFG_DEF);
 try{ Object.assign(CFG, JSON.parse(localStorage.getItem("pkq-cfg")) || {}); }catch(e){}
 let SFXM = null;   // 所有音效先經過這個總音量，再送到喇叭
 function dst(c){ if(!SFXM || SFXM.ctx !== c){ const gn = c.createGain(); gn.gain.value = CFG.sfx; gn.connect(c.destination); SFXM = {ctx:c, gn}; } return SFXM.gn; }
 let ac = null, muted = false;
+// 題目朗讀：用瀏覽器內建的中文語音，題目一出現就唸。靜音或設定關掉時不唸，換畫面就停。聲音和語速在設定裡選（voice 空白 = 瀏覽器自己挑台灣中文語音）
+const TTS = window.speechSynthesis;
+function speak(text, test){ if(!TTS) return; TTS.cancel(); if(muted || !text || (!CFG.tts && !test)) return; const m = new SpeechSynthesisUtterance(text), v = TTS.getVoices().find(v => v.voiceURI === CFG.voice);
+  m.lang = v ? v.lang : "zh-TW"; if(v) m.voice = v; m.rate = CFG.rate; TTS.speak(m); }   // test：設定裡的試聽，關掉自動唸題目時也要能聽
 function A(){ if(muted) return null; if(!ac) ac = new (window.AudioContext||window.webkitAudioContext)(); if(ac.state === "suspended") ac.resume(); return ac; }
 function tone(f,t0,d,type="sine",v=.2,f2,out){ const a = A(); if(!a) return; const o = a.createOscillator(), gn = a.createGain(), t = a.currentTime+t0;
   o.type = type; o.frequency.setValueAtTime(f,t); if(f2) o.frequency.exponentialRampToValueAtTime(f2,t+d);
@@ -668,7 +677,7 @@ const muteBtn = new Pad({r:20,color:"#4aa3df",label:"",custom:(x,y,r) => glyph("
 // ===== 場景管理與換頁（深色寬帶橫掃，中途換場景）=====
 let scene = null, trans = null, downPad = null, ptr = {x:0,y:0};
 function go(make){ if(trans) return; trans = {t:0, make, swapped:false}; SFX.swoosh(); }
-function setScene(s){ BOSS.on = !!OT; if(OT && !BOSS.timer) bossMusic(true); else if(!OT && BOSS.timer) bossMusic(false); scene && scene.exit && scene.exit(); scene = s; document.body.classList.toggle("onhome", !!s.home); PT.length = 0; s.layout && s.layout(); s.enter && s.enter(); themeWant(!s.noBgm); }
+function setScene(s){ BOSS.on = !!OT; if(OT && !BOSS.timer) bossMusic(true); else if(!OT && BOSS.timer) bossMusic(false); scene && scene.exit && scene.exit(); TTS && TTS.cancel(); scene = s; document.body.classList.toggle("onhome", !!s.home); PT.length = 0; s.layout && s.layout(); s.enter && s.enter(); themeWant(!s.noBgm); }
 function drawTrans(){
   const p = trans.t, k = .16*H; let x0, x1;
   if(p < .5){ x0 = lerp(-W*1.3, -k, easeOut(p*2)); x1 = x0 + W*1.4; } else { x0 = lerp(-k, W*1.3, easeOut((p-.5)*2)); x1 = x0 + W*1.4; }
@@ -684,18 +693,18 @@ const setCursor = v => { cv.style.cursor = v; if(!cv.style.cursor) cv.style.curs
 let paused = false, modal = null, wasPlaying = false;
 const lbl = lines => (x,y,r) => lines.forEach((l,k) => txt(l,x,y+(k-(lines.length-1)/2)*Math.max(15,r*.3)*1.25,{size:Math.max(15,r*.3),w:900,c:"#fff",stroke:"rgba(0,0,0,.3)",sw:3}));
 function openConfirm(o){
-  if(modal) return; wasPlaying = !MUSIC.paused; if(o.pause){ MUSIC.pause(); paused = true; scene && scene.onPause && scene.onPause(true); } SFX.pop();
+  if(modal) return; wasPlaying = !MUSIC.paused; if(o.pause){ MUSIC.pause(); TTS && TTS.pause(); paused = true; scene && scene.onPause && scene.onPause(true); } SFX.pop();
   const stay = new Pad({pill:[1.15,.62],color:o.noColor||C.coral,custom:lbl(o.no)}), leave = new Pad({pill:[1.15,.62],color:o.yesColor||"#5b6b7c",custom:lbl(o.yes)});
   modal = {pads:[stay,leave], stay, leave, ...o}; layoutModal();
 }
-function openPause(){ if(modal) return; wasPlaying = !MUSIC.paused; MUSIC.pause(); paused = true; scene && scene.onPause && scene.onPause(true); SFX.pop();
+function openPause(){ if(modal) return; wasPlaying = !MUSIC.paused; MUSIC.pause(); TTS && TTS.pause(); paused = true; scene && scene.onPause && scene.onPause(true); SFX.pop();
   const mk = (t,c) => new Pad({pill:[1.15,.62],color:c,custom:lbl([t])});
   modal = {title:"已暫停", sub:"", pause:true, pads:[mk("繼續",C.green), mk("重新來過",C.coral), mk("返回選題","#5b6b7c")], acts:[closeGuard, () => { closeGuard(); restartGame(); }, () => { closeGuard(); backToHome(); }]}; layoutModal(); }
 function restartGame(){ if(CUR && CUR.make) go(CUR.make); }
 function backToHome(){ if(CUR && CUR.preview){ returnFromPreview(); return; } if(CUR) releaseQuestion(CUR.q); go(Home); }   // 返回不算選過這題
 const openGuard = () => openConfirm({title:"要重新整理嗎？", sub:"目前的遊戲進度會消失", no:["繼續","遊戲"], yes:["重新","整理"], pause:true, onYes:() => { modal.leaving = true; location.reload(); }});
 function layoutModal(){ if(!modal) return; const n = modal.pads.length, r = Math.min(W*.17, H*.15, 76*u*1.1, (W-24)/(n*2.9+.3)); modal.pads.forEach((p,i) => { p.r = r; p.x = W/2 + (i-(n-1)/2)*r*2.9; p.y = H/2 + r*.75; }); }
-function closeGuard(){ const m = modal; modal = null; paused = false; downPad = null; if(m && m.pause && scene && scene.onPause) scene.onPause(false); if(m && m.pause && wasPlaying && scene && scene.guard) MUSIC.play().catch(() => {}); }
+function closeGuard(){ const m = modal; modal = null; paused = false; downPad = null; if(m && m.pause && TTS) TTS.resume(); if(m && m.pause && scene && scene.onPause) scene.onPause(false); if(m && m.pause && wasPlaying && scene && scene.guard) MUSIC.play().catch(() => {}); }
 function drawModal(){
   g.fillStyle = "rgba(4,10,22,.82)"; g.fillRect(0,0,W,H);
   const r = modal.pads[0].r, ty = Math.max(insT+40, H/2 - r*1.55), ts = Math.min(W*.09,52*u+8);
@@ -737,11 +746,15 @@ function hud(){
 function pos(e){ const r = cv.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
 const hitPad = p => allPads().slice().reverse().find(d => !d.hidden && d.hit(p.x,p.y));
 cv.tabIndex = 0;
-function toggleMute(){ muted = !muted; MUSIC.muted = muted; themeWant(!(scene && scene.noBgm), true); if(!muted) SFX.pop(); }
+function toggleMute(){ muted = !muted; if(muted && TTS) TTS.cancel(); MUSIC.muted = muted; themeWant(!(scene && scene.noBgm), true); if(!muted) SFX.pop(); }
 function applyCfg(){ MUSIC.volume = CFG.music; if(SFXM) SFXM.gn.gain.value = CFG.sfx; $("#sw").style.display = CFG.sw ? "" : "none"; themeWant(!(scene && scene.noBgm), true); }
 function saveCfg(){ try{ localStorage.setItem("pkq-cfg", JSON.stringify(CFG)); }catch(e){} }
 function syncCfgUi(){ $("#cfgMusic").value = Math.round(CFG.music*100); $("#cfgMusicV").textContent = Math.round(CFG.music*100); $("#cfgSfx").value = Math.round(CFG.sfx*100); $("#cfgSfxV").textContent = Math.round(CFG.sfx*100);
-  $("#cfgMute").checked = muted; $("#cfgCalm").checked = CFG.calm; $("#cfgSw").checked = CFG.sw; }
+  $("#cfgMute").checked = muted; $("#cfgCalm").checked = CFG.calm; $("#cfgSw").checked = CFG.sw;
+  $("#cfgTts").checked = CFG.tts; $("#cfgRate").value = CFG.rate; $("#cfgRateV").textContent = CFG.rate.toFixed(1) + "x"; voiceList(); }
+function voiceList(){ const vs = TTS ? TTS.getVoices().filter(v => /^zh|^cmn|^yue/i.test(v.lang)) : [];   // 語音清單要等瀏覽器載完，所以載完時再填一次
+  $("#cfgVoice").innerHTML = `<option value="">自動（台灣中文）</option>` + vs.map(v => `<option value="${esc(v.voiceURI)}">${esc(v.name)}（${esc(v.lang)}）</option>`).join(""); $("#cfgVoice").value = vs.some(v => v.voiceURI === CFG.voice) ? CFG.voice : ""; }
+if(TTS) TTS.addEventListener("voiceschanged", () => { if(!$("#cfg").hidden) voiceList(); });
 function openCfg(){ syncCfgUi(); $("#cfg").hidden = false; SFX.pop(); }
 function closeCfg(){ $("#cfg").hidden = true; cv.focus({preventScroll:true}); }
 $("#cfgMusic").oninput = e => { CFG.music = e.target.value/100; $("#cfgMusicV").textContent = e.target.value; applyCfg(); saveCfg(); };
@@ -749,6 +762,10 @@ $("#cfgSfx").oninput = e => { CFG.sfx = e.target.value/100; $("#cfgSfxV").textCo
 $("#cfgSfx").onchange = () => SFX.pop();
 $("#cfgMute").onchange = e => { if(e.target.checked !== muted) toggleMute(); };
 $("#cfgCalm").onchange = e => { CFG.calm = e.target.checked; saveCfg(); };
+$("#cfgTts").onchange = e => { CFG.tts = e.target.checked; if(!CFG.tts && TTS) TTS.cancel(); saveCfg(); };
+$("#cfgVoice").onchange = e => { CFG.voice = e.target.value; saveCfg(); speak("這是題目朗讀的聲音", true); };
+$("#cfgRate").oninput = e => { CFG.rate = +e.target.value; $("#cfgRateV").textContent = CFG.rate.toFixed(1) + "x"; saveCfg(); };
+$("#cfgSay").onclick = () => speak("台灣羽球男雙組合麟洋配，在 2024 年巴黎奧運成功衛冕金牌。", true);
 $("#cfgSw").onchange = e => { CFG.sw = e.target.checked; applyCfg(); saveCfg(); };
 $("#cfgReset").onclick = () => { Object.assign(CFG, CFG_DEF); applyCfg(); saveCfg(); syncCfgUi(); };
 $("#cfgClose").onclick = closeCfg;
@@ -1392,7 +1409,7 @@ function Quiz(kind = "quiz"){
     rightP = miniPad("答對",C.green); wrongP = miniPad("答錯",C.coral); endB = miniPad("答題結束","#5b6b7c");
     showB = miniPad("公布答案","#4aa3df");
     if(song){ jumpB = iconPill("restart","換段落","#4aa3df"); playB = iconPill(() => pl.playing ? "pause" : "play",() => pl.playing ? "暫停" : "播放","#4aa3df"); pl.load(q); }
-    setPads(); tm.start(); }
+    setPads(); tm.start(); if(!song) speak(q.q); }
   function tilePad(x,y,r,p){
     const o = easeOut(clamp(p.open,0,1)), rv = p.rv, sz = r*.98;
     g.save(); if(p.dim) g.globalAlpha = .3; const sc = 1+.08*rv; if(sc !== 1){ g.translate(x,y); g.scale(sc,sc); g.translate(-x,-y); }
@@ -1476,7 +1493,7 @@ function Round(kind){
     okB = miniPad("答對",C.green); noB = miniPad("答錯",C.coral); showB = miniPad("公布答案","#4aa3df"); endB = miniPad("答題結束","#5b6b7c");
     if(kind === "sort"){ const idx = q.items.map((_,i) => i); let o; do{ o = shuf(idx); }while(o.every((v,i) => v === i)); cards = o.map((k,i) => ({text:q.items[k], ord:k, i, y:undefined})); btns = [showB]; }
     else if(kind === "tf"){ const t = miniPad("○ 真",C.green), f = miniPad("✗ 假",C.coral); t.tf = true; f.tf = false; btns = [t,f]; }
-    setPads(); s.layout(); tm.start(); }
+    setPads(); s.layout(); tm.start(); speak(q.q); }
   function award(x,y,hold){ SFX.deliver(); burst(x,y,60,[C.red,C.gold,"#fff",C.green],10); ring(x,y,C.gold,20,500,.7,6);
     G.combo++; G.maxCombo = Math.max(G.maxCombo,G.combo); G.score++; kills++; got[qi] = true; floatT(x,y-30*u,"+1",C.gold,40*u+8,DISP); nextAt = T + hold; }
   function miss(x,y,hold){ SFX.bad(); G.combo = 0; shake = 10; redFlash = .3; nextAt = T + hold; if(x != null) floatT(x,y,"MISS",C.red,32*u+6,DISP); }
@@ -1915,7 +1932,7 @@ function OTBuzz(entry){
   function ask(){ qi++; q = RL[qi]; phase = "ask"; who = -1; out = []; banner = null; ansAt = 0;
     teamB = ids.map((ti,k) => miniPad(S.teams[ti].name, TC[k % TC.length])); okB = miniPad("答對",C.green); noB = miniPad("答錯",C.coral); endB = miniPad("答題結束","#5b6b7c");
     if(q.song){ bossMusic(false); jumpB = iconPill("restart","換段落","#4aa3df"); playB = iconPill(() => pl.playing ? "pause" : "play", () => pl.playing ? "暫停" : "播放", "#4aa3df"); pl.load(q.song); }   // 猜歌時先關掉加賽配樂
-    setPads(teamB); tm.start(); SFX.boom(); }
+    setPads(teamB); tm.start(); SFX.boom(); if(!q.song) speak(q.q); }
   function soldOut(){ phase = "out"; banner = {text:"這一題沒有隊伍答對，還沒分出勝負", color:"#ffd0d0"}; moreB = miniPad(pv ? "回到題庫" : "再抽一題",C.coral); setPads([moreB]); }
   function win(){ tm.stop(); const t = S.teams[who]; if(!pv){ t.score += 1; S.log.push({run:S.run, team:t.id, q:"加賽", score:1}); save(); }
     phase = "won"; banner = {text:`【${t.name}】勝出！`, color:C.gold}; reveal(); winB = miniPad(pv ? "回到題庫" : "最終結算",C.gold); setPads([winB]);
