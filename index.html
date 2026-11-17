@@ -259,11 +259,15 @@ const MDB = (() => { let p = null;
 const IMGC = new Map(), AUDC = new Map();   // 已載入的圖片（Image）與音檔（物件網址），key 是 IndexedDB 裡的編號
 const imgOf = r => !r ? null : (typeof r === "object" ? r : (IMGC.get(r) || null));
 function mediaRefs(q){ const img = new Set(), aud = new Set(); (q.rounds||[]).forEach(r => { (r.cells||[]).forEach(c => c.img && img.add(c.img)); r.img && img.add(r.img); }); (q.photos||[]).forEach(p => img.add(p)); (q.songs||[]).forEach(s => s.src && aud.add(s.src)); return {img, aud}; }
+const URLBAD = new Set();   // 這次開遊戲下載失敗過的圖片網址：之後不再重試，避免每次進題目都等
 async function urlBlob(k){ let b = await MDB.get(k).catch(() => null); if(b) return b;   // 網址的圖（表單上傳的照片）：第一次下載後存在這台電腦，比賽中不用再跟 Google 要
-  for(let i=0;i<3;i++){ try{ const r = await fetch(k); if(r.ok && /^image\//.test(r.headers.get("content-type") || "")){ b = await r.blob(); await MDB.put(k,b).catch(() => {}); return b; } }catch(e){}
-    await new Promise(r => setTimeout(r, 1500*(i+1))); }   // Google 偶爾回「請求太多」(429)：等一下再試
-  return null; }
-async function warmUrls(){ for(const q of BANK) for(const k of mediaRefs(q).img) if(/^https?:/.test(k)) await urlBlob(k); }   // 同步完在背景一張一張先下載，不要同時大量請求
+  if(URLBAD.has(k)) return null;
+  for(let i=0;i<2;i++){ try{ const r = await fetch(k); if(r.ok && /^image\//.test(r.headers.get("content-type") || "")){ b = await r.blob(); await MDB.put(k,b).catch(() => {}); return b; } }catch(e){}
+    if(!i) await new Promise(r => setTimeout(r, 1500)); }   // Google 偶爾回「請求太多」(429)：等一下再試一次
+  URLBAD.add(k); return null; }   // 沒開放的雲端硬碟照片會被導到登入頁，瀏覽器只看得到「讀取失敗」，和沒網路分不出來
+async function warmUrls(){ URLBAD.clear(); let bad = 0;   // 同步完在背景一張一張先下載，不要同時大量請求
+  for(const q of BANK) for(const k of mediaRefs(q).img) if(/^https?:/.test(k) && !(await urlBlob(k))) bad++;
+  if(bad) toast(`有 ${bad} 張出題表單上傳的照片下載不到，會先用占位圖。請把雲端硬碟裡表單的上傳資料夾設成「知道連結的任何人都能檢視」，再按題庫頁的「從表單回覆更新」`, true, 20000); }
 async function preloadMedia(q){   // 進入遊戲前先把這題用到的圖片和音檔載好
   const r = mediaRefs(q);
   await Promise.all([...[...r.img].filter(k => !IMGC.has(k)).map(async k => { try{ const b = /^https?:/.test(k) ? await urlBlob(k) : await MDB.get(k); if(!b) return; const im = new Image(); im.src = URL.createObjectURL(b); if(await im.decode().then(() => true, () => false)) IMGC.set(k,im); }catch(e){} }),
@@ -1702,7 +1706,7 @@ function Brief(q, resume, preview){
       start.glow = .25 + .25*Math.sin(T*4); },
     onPad(p){ if(p === back){ SFX.pop(); if(preview){ returnFromPreview(); return; } if(resume) releaseQuestion(q); go(Home); return; }
       if(starting) return; starting = true; SFX.boom(); ring(start.x,start.y,start.color,20,500,.8,6); burst(start.x,start.y,40,[start.color,C.gold,"#fff"],9);
-      preloadMedia(q).then(() => { starting = false;   // 先把這題的圖片與音檔載好再開始
+      Promise.race([preloadMedia(q), new Promise(r => setTimeout(r, 3000))]).then(() => { starting = false;   // 最多等 3 秒，還沒下載完的照片載好後會自己出現
         if(OT){ go(() => Intro(lines,big,next)); return; }
         if(preview){ CUR = {q, ti:S.turn, preview:true, make:next}; themeWant(false); go(() => Intro(lines,big,next)); return; }   // 預覽也完整播開場字幕（點一下可以跳過）
         startQuestion(q); CUR.make = next; themeWant(false); go(() => Intro(lines,big,next)); }); }};
