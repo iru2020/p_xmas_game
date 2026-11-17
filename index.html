@@ -1842,7 +1842,8 @@ function otRound(q){   // 把各題型轉成搶答用的格式：q 題目、opts
   const one = L => L[Math.floor(Math.random()*L.length)];
   if(q.type === "quiz"){ const r = pick1(q.qs, QS, q)[0]; return {q:r.q, opts:r.o.map((o,i) => `${"ABCD"[i]}. ${o}`), answer:`${"ABCD"[r.a]}　${r.o[r.a]}`}; }
   if(q.type === "tf"){ const r = pick1(q.rounds, ROUND_DATA.tf, q)[0]; return {q:r.q, opts:["這句話是真的還是假的？"], answer:r.a ? "真" : "假"}; }
-  if(q.type === "sort"){ const r = pick1(q.rounds, ROUND_DATA.sort, q)[0]; return {q:r.q, opts:shuf(r.items).map(x => "・" + x), answer:r.items.join(" → ")}; }   // 打亂的項目一行一個
+  if(q.type === "sort"){ const r = pick1(q.rounds, ROUND_DATA.sort, q)[0]; const idx = r.items.map((_,i) => i); let o; do{ o = shuf(idx); }while(idx.length > 1 && o.every((v,i) => v === i));   // 打亂到和正確順序不一樣，免得剛好排對漏出答案
+    return {q:r.q, opts:o.map(k => "・" + r.items[k]), answer:r.items.join(" → ")}; }   // 打亂的項目一行一個
   if(q.type === "song"){ const song = {...(q.songs && q.songs.length ? one(q.songs) : listId(SONGLIST) ? {q:"請講出這首歌的歌名", list:true, title:""} : one(SONGS))};
     return {q:"請講出這首歌的歌名", opts:[], song, get answer(){ return song.title || "（歌名讀取中）"; }}; }
   if(q.type === "grid"){ const r = pick1(q.rounds, gridRounds(q), q)[0]; return {q:r.q, opts:[], grid:r, answer:r.mode === "name" ? "" : `${r.targets.length} 人`}; }
