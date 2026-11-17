@@ -893,7 +893,7 @@ function renderBank(){
   $("#bkList").innerHTML = BANK.filter(q => bankCat < 0 || q.cat === bankCat).map(q => { const c = CATS[q.cat], ti = TYPE_INFO[q.type], rs = bankRounds(q);
     return `<details><summary><i style="background:${c.color}"></i><span class="cat">${esc(c.name)}</span><span class="ty">${esc(ti.name.replace(/（.*）/,""))}</span><b>${esc(q.title)}</b><span class="n">${q.type === "rhythm" ? RUNS + " run" : rs.length + " 題"}</span>${q.placeholder ? '<span class="ph">占位</span>' : "<span></span>"}</summary>
       <ol>${rs.map(t => `<li>${esc(t)}</li>`).join("")}</ol>${(() => { const it = introOf(q); return `<p class="intro"><b>開場字幕</b>（${it.own ? "這題自訂" : "用題型的預設句子"}）：${it.lines.map(esc).join("　／　")}　／　大標題：<b>${esc(it.big)}</b>　<small>大標題一定是題名，三句短句沒自訂時用題型預設</small></p>`; })()}${q.placeholder ? '<p class="note">這是占位題目，正式內容還沒放入。</p>' : ""}
-      <div class="btns"><button class="go" data-id="${q.id}" data-do="prev" ${q.type === "buzz" ? "disabled title=\"搶答題只在加賽出現\"" : canPlay ? "" : "disabled title=\"請先完成分隊設定\""}>預覽玩一次</button><button class="ghost sm" data-id="${q.id}" data-do="edit" ${ce ? "" : "disabled"}>編輯</button><button class="ghost sm" data-id="${q.id}" data-do="dup" ${ce ? "" : "disabled"}>複製</button><button class="ghost sm" data-id="${q.id}" data-do="del" ${ce ? "" : "disabled"}>刪除</button></div></details>`; }).join("");
+      <div class="btns"><button class="go" data-id="${q.id}" data-do="prev" ${q.type === "buzz" ? "disabled title=\"搶答題只在加賽出現\"" : canPlay ? "" : "disabled title=\"請先完成分隊設定\""}>預覽玩一次</button>${OT_TYPES.includes(q.type) ? `<button class="ghost sm" data-id="${q.id}" data-do="otprev" ${OT ? "disabled title=\"加賽進行中\"" : canPlay ? "" : "disabled title=\"請先完成分隊設定\""}>預覽加賽版</button>` : ""}<button class="ghost sm" data-id="${q.id}" data-do="edit" ${ce ? "" : "disabled"}>編輯</button><button class="ghost sm" data-id="${q.id}" data-do="dup" ${ce ? "" : "disabled"}>複製</button><button class="ghost sm" data-id="${q.id}" data-do="del" ${ce ? "" : "disabled"}>刪除</button></div></details>`; }).join("");
   $("#bkLock").textContent = ce ? "" : "比賽進行中，題庫已鎖住（只能看與預覽）。回到首頁才能編輯、新增、刪除。";
   ["bkAdd","bkImport","bkCsvIn","bkReset","bkSongSave"].forEach(id => $("#"+id).disabled = !ce);
   $("#bkTypes").innerHTML = Object.entries(TYPE_INFO).filter(([k]) => TYPES.includes(k)).map(([k,t]) => { const n = BANK.filter(q => q.type === k).length, h = TYPE_HELP[k] || {edit:[], csv:""};
@@ -909,6 +909,7 @@ $("#bkList").onclick = e => { const b = e.target.closest("button[data-id]"); if(
   if(d === "edit") return openEdit(q);
   if(d === "dup"){ const c = JSON.parse(JSON.stringify(q)); c.id = "u"+Math.random().toString(36).slice(2,8); c.title += "（複製）"; c.placeholder = false; BANK.splice(BANK.indexOf(q)+1,0,c); saveBank(); bankDirty = true; return renderBank(); }
   if(d === "del") return askConfirm("要刪除這一題嗎？",`「${q.title}」會從題庫移除，無法復原。\n（刪除前可以先「匯出題庫」備份）`,"刪除",() => { BANK.splice(BANK.indexOf(q),1); saveBank(); bankDirty = true; renderBank(); });
+  if(d === "otprev"){ closeBank(); OT = {auto:false, preview:true, ids:S.teams.length > 1 ? [0,1] : [0], used:[]}; setScene(Brief(q, false, true)); return; }   // 用前兩隊的隊名預覽這題的加賽畫面
   closeBank(); setScene(Brief(q, false, true)); };
 addEventListener("keydown", e => { if(e.key === "Escape" && !$("#bank").hidden) closeBank(); });
 
@@ -1216,7 +1217,7 @@ $("#bkImport").onclick = () => $("#bkFile").click();
 $("#bkFile").onchange = e => { const f = e.target.files[0]; e.target.value = ""; if(f) askConfirm("要匯入這個題庫嗎？",`「${f.name}」的內容會取代目前的整個題庫，無法復原。`,"匯入",() => importBank(f)); };
 $("#bkReset").onclick = () => askConfirm("要恢復內建題庫嗎？","所有自訂與修改過的題目、上傳的圖片和音檔都會清除，換回內建的占位題庫，無法復原。","恢復",resetBank);
 
-function returnFromPreview(){ CUR = null; setScene(Home()); openBank(); }   // 不做轉場：題庫頁直接蓋回來，不會先閃過首頁
+function returnFromPreview(){ CUR = null; OT = null; setScene(Home()); openBank(); }   // 不做轉場：題庫頁直接蓋回來，不會先閃過首頁
 // ===== 每一小題 30 秒倒數（答題、加賽共用）：最後 10 秒每秒嗶一聲、畫面泛紅、數字跳動；時間到呼叫 onUp =====
 const QTIME = 30;
 function qTimer(onUp){ const t = {t0:0, on:false, up:false, last:0, fz:null,
@@ -1740,10 +1741,10 @@ function demoDraw(type,d){
 const BOX_COLORS = ["#5fd0ff","#8b7bff","#D9B26A","#35c98a"];
 function Brief(q, resume, preview){
   let starting = false;
-  const c = CATS[q.cat], team = curTeam(), rules = OT ? [`加賽：${otVs()}`, ...RULES.buzz, `每題限時 ${QTIME} 秒`] : [preview ? "預覽模式：不會計分，也不影響比賽" : `挑戰隊伍：${team.name}`, ...(resume ? ["上次在這題中斷，按 START 重新開始這題"] : []), ...RULES[typeKey(q)], q.type === "rhythm" ? "完成挑戰得 1 分" : `限時 ${QTIME} 秒，答對得 1 分`].concat(q.placeholder ? ["（占位題目，正式題目待提供）"] : []);
+  const c = CATS[q.cat], team = curTeam(), rules = OT ? [...(OT.preview ? ["預覽加賽版：不會計分，也不影響比賽"] : []), `加賽：${otVs()}`, ...RULES.buzz, `每題限時 ${QTIME} 秒`] : [preview ? "預覽模式：不會計分，也不影響比賽" : `挑戰隊伍：${team.name}`, ...(resume ? ["上次在這題中斷，按 START 重新開始這題"] : []), ...RULES[typeKey(q)], q.type === "rhythm" ? "完成挑戰得 1 分" : `限時 ${QTIME} 秒，答對得 1 分`].concat(q.placeholder ? ["（占位題目，正式題目待提供）"] : []);
   const lines = q.intro || INTRO[typeKey(q)], big = `${q.title}！`, next = OT ? () => OTBuzz(q) : q.type === "rhythm" ? () => Rhythm() : ["quiz","song","grid"].includes(q.type) ? () => Quiz(q.type) : () => Round(q.type);
   const start = new Pad({r:80,pill:[1.3,.56],color:c.color === "#003255" ? "#4aa3df" : c.color,custom:(x,y,r) => txt("START",x,y,{size:r*.3,f:DISP,w:900,c:"#fff",ls:2,stroke:"rgba(0,0,0,.3)",sw:3})}), back = backPad();
-  return {pads: OT ? [start] : [start,back], muffle:true,
+  return {pads: OT && !OT.preview ? [start] : [start,back], muffle:true,
     metrics(){ const rs = Math.max(13, Math.min(18*u+2, W*.045)), gap = rs*1.75, y1 = hdrBottom(hdrSz())+16+rs/2, yEnd = y1+(rules.length-1)*gap+rs/2; return {rs,gap,y1,yEnd}; },
     layout(){ const m = this.metrics(), top = m.yEnd+14, bot = H-insB-34, ah = bot-top, dh = ah >= 300 ? Math.min(ah*.45, 210) : 0, ah2 = ah-dh; this.demo = {x:W/2, y:top, w:Math.min(W-32,560), h:dh}; start.r = Math.min(W*.2, ah2/2.5, 100*u*1.1); start.x = W/2; start.y = top + dh + ah2/2; back.x = 16+back.r; back.y = H-insB-16-back.r; },
     draw(){ header(OT ? `${c.en}・SUDDEN DEATH` : `${c.en}・RUN ${S.run}`, q.title, hdrSz()); const m = this.metrics();
@@ -1850,13 +1851,13 @@ function otRound(q){   // 把各題型轉成搶答用的格式：q 題目、opts
   return {...pick1(q.rounds, BUZZ0, q)[0], opts:[]}; }
 function OTBuzz(entry){
   if(!OT.used.includes(entry.id)) OT.used.push(entry.id);
-  const ids = OT.ids, RL = [otRound(entry)], c = CATS[entry.cat] || CATS[0], pl = songPlayer();
+  const ids = OT.ids, RL = [otRound(entry)], c = CATS[entry.cat] || CATS[0], pl = songPlayer(), pv = !!OT.preview, backB = pv ? backPad() : null;   // pv：題庫的「預覽加賽版」
   let qi = -1, q, phase = "ask", who = -1, out = [], banner = null, qLines = [], oLines = [], teamB = [], okB, noB, endB, winB, moreB, playB, jumpB, ansAt = 0;   // ansAt：公布答案的時間（0 = 還沒公布）
   const tm = qTimer(timeUp), TC = ["#e0334b","#ff8a3d","#8b7bff","#4aa3df","#35c98a","#D9B26A"];
-  const setPads = L => { s.pads = q && q.song ? [...L, playB, jumpB] : L; s.layout(); };   // 猜歌：播放、換段落一直都在
+  const setPads = L => { s.pads = [...L, ...(q && q.song ? [playB, jumpB] : []), ...(backB ? [backB] : [])]; s.layout(); };   // 猜歌：播放、換段落一直都在
   const s = {noBgm:true, guard:true, pads:[],
     layout(){ const cx = W/2, mw = Math.min(W-32-2*(48*u+30), 820); s.qy = insT + 120*u + 60;
-      const bot = H - insB - (W < 700 ? 104 : 60), list = s.pads.filter(p => p !== playB && p !== jumpB), pr = clamp(Math.min((W-32)/(list.length*2.9+.2), 46*u+14), 22, 64);
+      const bot = H - insB - (W < 700 ? 104 : 60), list = s.pads.filter(p => p !== playB && p !== jumpB && p !== backB), pr = clamp(Math.min((W-32)/(list.length*2.9+.2), 46*u+14), 22, 64);
       list.forEach((p,i) => { p.r = pr; p.x = cx + (i-(list.length-1)/2)*pr*2.9; p.y = bot - pr*.55; }); s.bnY = bot - pr*1.6 - 30;
       const gap = q && (q.grid || q.song) ? Math.max(56, 60*u) : 30, room = (q && q.grid ? Math.min(H*.36, 320) : q && q.song ? 130 : Math.max(96,110*u)*.9) + gap;   // 題目下面要留給九宮格、猜歌或答案卡的高度
       let qs = Math.max(20, 30*u+4), os;
@@ -1864,10 +1865,12 @@ function OTBuzz(entry){
         if(s.qy + qLines.length*qs*1.35 + oLines.length*os*1.45 + room <= s.bnY || qs <= 18) break; qs *= .94; }
       s.qs = qs; s.os = os;
       s.midTop = s.qy + (qLines.length - .5)*qs*1.35 + oLines.length*os*1.45 + 14; s.midBot = s.bnY - gap;   // 題目和橫幅之間：九宮格、猜歌、答案卡畫在這裡
+      if(backB){ backB.x = 16 + backB.r; backB.y = H - insB - 16 - backB.r; }
       if(playB){ const r = clamp(30*u+10, 20, 44); [playB, jumpB].forEach((p,i) => { p.r = r; p.x = cx + (i ? 1 : -1)*r*1.6; p.y = s.midBot - r*.6; }); } },
     enter(){ ask(); },
     exit(){ pl.stop(); },
     onPad(p){
+      if(p === backB){ SFX.pop(); returnFromPreview(); return; }
       if(p === playB){ pl.toggle(); return; } if(p === jumpB){ pl.jump(); return; }
       if(phase === "ask"){ const i = teamB.indexOf(p); if(i < 0) return; SFX.boom(); shake = 8; who = ids[i]; phase = "answer"; banner = {text:`【${S.teams[who].name}】搶到了！`, color:C.gold}; if(q.song) pl.pause(); setPads([okB, noB]); return; }   // 有人搶到就先停歌
       if(phase === "answer"){ if(p === okB) return win();
@@ -1875,8 +1878,8 @@ function OTBuzz(entry){
           if(out.length >= ids.length){ tm.stop(); phase = "dead"; banner = {text:"全部答錯！", color:C.red}; reveal(); setPads([endB]); }
           else { phase = "ask"; banner = {text:`【${S.teams[who].name}】答錯，這題不能再搶`, color:C.red}; if(q.song) pl.play(); setPads(teamB.filter((b,k) => !out.includes(ids[k]))); } } return; }
       if((phase === "timeout" || phase === "dead") && p === endB){ SFX.pop(); qi >= RL.length-1 ? soldOut() : ask(); return; }
-      if(phase === "out" && p === moreB){ SFX.pop(); go(OTPick); return; }
-      if(phase === "won" && p === winB){ SFX.pop(); const auto = OT.auto; OT = null; go(() => Final(auto)); } },
+      if(phase === "out" && p === moreB){ SFX.pop(); if(pv) returnFromPreview(); else go(OTPick); return; }
+      if(phase === "won" && p === winB){ SFX.pop(); if(pv) return returnFromPreview(); const auto = OT.auto; OT = null; go(() => Final(auto)); } },
     update(){ tm.step(); pl.step(); },
     draw(){
       eyebrow(`${c.en}・SUDDEN DEATH`, eyY()); txt(otVs(), W/2, eyY() + 40*u + 6, {size:Math.max(16,24*u+4), w:900, c:C.gold, maxW:W-32-2*(48*u+30), glow:12, gc:"#ff2d3d"});
@@ -1904,9 +1907,9 @@ function OTBuzz(entry){
     teamB = ids.map((ti,k) => miniPad(S.teams[ti].name, TC[k % TC.length])); okB = miniPad("答對",C.green); noB = miniPad("答錯",C.coral); endB = miniPad("答題結束","#5b6b7c");
     if(q.song){ bossMusic(false); jumpB = iconPill("restart","換段落","#4aa3df"); playB = iconPill(() => pl.playing ? "pause" : "play", () => pl.playing ? "暫停" : "播放", "#4aa3df"); pl.load(q.song); }   // 猜歌時先關掉加賽配樂
     setPads(teamB); tm.start(); SFX.boom(); }
-  function soldOut(){ phase = "out"; banner = {text:"這一題沒有隊伍答對，還沒分出勝負", color:"#ffd0d0"}; moreB = miniPad("再抽一題",C.coral); setPads([moreB]); }
-  function win(){ tm.stop(); const t = S.teams[who]; t.score += 1; S.log.push({run:S.run, team:t.id, q:"加賽", score:1}); save();
-    phase = "won"; banner = {text:`【${t.name}】勝出！`, color:C.gold}; reveal(); winB = miniPad("最終結算",C.gold); setPads([winB]);
+  function soldOut(){ phase = "out"; banner = {text:"這一題沒有隊伍答對，還沒分出勝負", color:"#ffd0d0"}; moreB = miniPad(pv ? "回到題庫" : "再抽一題",C.coral); setPads([moreB]); }
+  function win(){ tm.stop(); const t = S.teams[who]; if(!pv){ t.score += 1; S.log.push({run:S.run, team:t.id, q:"加賽", score:1}); save(); }
+    phase = "won"; banner = {text:`【${t.name}】勝出！`, color:C.gold}; reveal(); winB = miniPad(pv ? "回到題庫" : "最終結算",C.gold); setPads([winB]);
     SFX.win(); shake = 18; for(let k=0;k<6;k++) setTimeout(() => burst(W*(.15+Math.random()*.7),H*.3,60,[C.gold,"#fff","#ff2d3d"],11,1.6,.2), k*180); }
   function timeUp(){ if(phase !== "ask" && phase !== "answer") return; phase = "timeout"; banner = {text:"時間到！沒有隊伍答對", color:C.red}; reveal(); setPads([endB]); }
   return s;
