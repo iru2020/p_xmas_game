@@ -1057,7 +1057,7 @@ function csvToBank(text){ let rows = parseCSV(text), head = (rows.shift() || [])
       真假:{題目內容:"真假：題目", 答案:"真假：答案", 說明:"真假：答案說明"}, 排序:{題目內容:"排序：題目", 選項1:"排序：第 1 個", 選項2:"排序：第 2 個", 選項3:"排序：第 3 個", 選項4:"排序：第 4 個", 選項5:"排序：第 5 個"}, 九宮格:{題目內容:"九宮格：題目", 答案:"九宮格：符合條件的格子", 照片:"九宮格：照片", 玩法:"九宮格：玩法", 名單:"九宮格：每格的答案"},
       猜歌:{答案:"猜歌：歌名", YouTube:"猜歌：YouTube 網址", 來源:"猜歌：音樂來源", 開始時間:"猜歌：開始播放的時間"}, 節奏:{照片:"節奏：圖片"}, 搶答:{題目內容:"搶答：題目", 答案:"搶答：答案"}};
     const H = [...CSV_HEAD, "照片", "玩法"];
-    rows = rows.map(r => { const v = n => (r[head.indexOf(n)] ?? "").trim(), o = {分類:v("分類"), 題名:v("題名"), 題型:v("題型")};
+    rows = rows.map(r => { const v = n => head.map((h,i) => h === n ? (r[i] ?? "").trim() : "").find(Boolean) || "", o = {分類:v("分類"), 題名:v("題名"), 題型:v("題型")};   // 同名的欄位（刪掉又加回的題目會在回覆表留下舊欄）取有內容的那一欄
       Object.entries(M[o.題型] || {}).forEach(([k,n]) => o[k] = v(n));
       if(/歌單/.test(o.來源 || "")) o.答案 = o.YouTube = "";
       if(/是誰/.test(o.玩法 || "")) o.答案 = o.名單 || "";   // 九宮格「說出每張是誰」：答案欄放每格的答案   // 選了「用遊戲設定的猜歌歌單」：這題不指定歌
@@ -1086,7 +1086,8 @@ function csvToBank(text){ let rows = parseCSV(text), head = (rows.shift() || [])
       x = {q:qq || "請講出這首歌的歌名", title:ans, yt:g("YouTube"), src:null, start: sm ? (sm[2] != null ? +sm[1]*60 + +sm[2] : +sm[1]) : null}; }
     else if(t === "buzz"){ if(!ans) return errs.push(at + "搶答題的答案不能空白"); x = {q:qq, answer:ans}; }
     else if(t === "grid" && (/是誰/.test(g("玩法")) || (!g("玩法") && /[^\d\s,，、]/.test(ans)))){   // 說出每張是誰：答案一行一個（試算表沒有玩法欄時，答案不是格子編號就當成這種）
-      const names = ans.split(/\n/).map(v => v.trim()).filter(Boolean); if(names.length !== 9) return errs.push(at + `九宮格「說出每張是誰」要剛好 9 個答案，一行一個，這題填了 ${names.length} 個`);
+      let names = ans.split(/\n/).map(v => v.trim()).filter(Boolean); if(names.length !== 9){ const alt = ans.split(/[\n,，、]/).map(v => v.trim()).filter(Boolean); if(alt.length === 9) names = alt; }   // 一行一個；用逗號隔開也可以
+      if(names.length !== 9) return errs.push(at + `九宮格「說出每張是誰」要剛好 9 個答案，一行一個（或用逗號隔開），這題填了 ${names.length} 個`);
       if(ph.length && ph.length !== 9) return errs.push(at + `九宮格要剛好 9 張照片，這題上傳了 ${ph.length} 張`); const cells = BLANK.grid().cells; ph.forEach((u,i) => cells[i].img = u); x = {q:qq, mode:"name", names, targets:[], cells}; }
     else if(t === "grid"){ const tg = [...new Set(ans.split(/[,，、\s]+/).filter(Boolean).map(v => +v - 1))].sort((a,b) => a-b); if(!tg.length || tg.some(v => !(v >= 0 && v < 9))) return errs.push(at + "九宮格的答案要填格子編號 1～9，多個用逗號隔開"); if(ph.length && ph.length !== 9) return errs.push(at + `九宮格要剛好 9 張照片，這題上傳了 ${ph.length} 張`); const cells = BLANK.grid().cells; ph.forEach((u,i) => cells[i].img = u); x = {q:qq, targets:tg, cells}; }
     n.rows.push(x); });
