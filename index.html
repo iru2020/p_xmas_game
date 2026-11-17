@@ -1298,6 +1298,28 @@ function songPlayer(){ let r = null, el = null, yt = null, bus = null, playing =
 
 // ===== 場景 5：答題（kind = quiz 選擇題 / song 猜歌 / grid 九宮格數人數）。每一小題 30 秒；答對一小題 +1 分 =====
 // 時間到：算答錯並公布答案，由主持人按「答題結束」才繼續
+// 選擇題的禮物盒（一般答題與加賽共用）：p 有 color、idx、text、open（打開程度）、rv（揭曉放大）、state、dim
+function giftPad(x,y,r,p){
+  const col = p.color, dk = mixHex(col,"#061326",.45), lt = mixHex(col,"#ffffff",.3), o = easeOut(clamp(p.open,0,1)), bw = r*.9, bt = y-r*.38, bb = y+r*.58, rib = "#f4d27a", rv = p.rv;
+  if(p.state === "empty") x += Math.sin(T*60)*r*.06*clamp(1.4-o*1.4,0,1);   // 選到空盒：盒子左右抖一下
+  g.save(); if(p.dim) g.globalAlpha = .3; if(rv > .01){ g.translate(x,y); g.scale(1+.14*rv,1+.14*rv); g.translate(-x,-y); }   // 揭曉的正確盒子放大
+  g.fillStyle = "rgba(2,8,22,.42)"; g.beginPath(); g.ellipse(x,y+r*.66,r*1.0,r*.2,0,0,7); g.fill();
+  if(rv > .01){ g.save(); g.globalAlpha = rv; g.strokeStyle = C.gold; g.lineWidth = 4; g.beginPath(); g.ellipse(x,y+r*.66,r*1.2,r*.28,0,0,7); g.stroke(); g.restore(); }
+  const gr = g.createLinearGradient(x-bw,0,x+bw,0); gr.addColorStop(0,lt); gr.addColorStop(.55,col); gr.addColorStop(1,dk); g.fillStyle = gr; g.beginPath(); g.roundRect(x-bw,bt,bw*2,bb-bt,r*.06); g.fill();
+  g.fillStyle = rib; g.fillRect(x-r*.1,bt,r*.2,bb-bt);
+  g.fillStyle = "#fbf3e0"; g.beginPath(); g.roundRect(x-r*.74,y-r*.02,r*1.48,r*.54,r*.05); g.fill();
+  let fs = Math.max(11,r*.22), ls = wrap(p.text,r*1.38,`900 ${fs}px ${CJK}`); while(ls.length > 2 && fs > 9){ fs *= .88; ls = wrap(p.text,r*1.38,`900 ${fs}px ${CJK}`); }
+  ls.forEach((l,i) => txt(l,x,y+r*.25+(i-(ls.length-1)/2)*fs*1.2,{size:fs,w:900,c:"#3a2418"}));
+  g.fillStyle = dk; g.beginPath(); g.arc(x-bw+r*.19,bt+r*.2,r*.15,0,7); g.fill(); txt("ABCD"[p.idx],x-bw+r*.19,bt+r*.2,{size:r*.19,f:DISP,w:900,c:"#fff"});
+  if(o > .03){   // 盒子裡的東西：答對與揭曉是星星，答錯是空的
+    if(p.state === "empty"){ g.globalAlpha *= o; g.fillStyle = "#8a97a8"; [[-.2,-.1,.14],[.15,-.35,.18],[-.05,-.6,.12]].forEach(([ox,oy,rr]) => { g.beginPath(); g.arc(x+ox*r,bt+oy*r,rr*r,0,7); g.fill(); }); txt("空的",x,bt-r*1.05,{size:r*.36,w:900,c:"#ff9a9a",stroke:"rgba(0,0,0,.7)",sw:6}); g.globalAlpha = p.dim ? .35 : 1; }
+    else { g.save(); g.translate(x,bt-o*r*.75); g.rotate(Math.sin(T*3)*.15); g.scale(o,o); g.shadowColor = C.gold; g.shadowBlur = p.state === "win" ? 22 : 8; g.fillStyle = p.state === "win" ? C.gold : "#e8d7a3"; g.beginPath(); for(let k=0;k<10;k++){ const a = -Math.PI/2+k*Math.PI/5, rr = k%2 ? r*.16 : r*.36; k ? g.lineTo(Math.cos(a)*rr,Math.sin(a)*rr) : g.moveTo(Math.cos(a)*rr,Math.sin(a)*rr); } g.closePath(); g.fill(); g.restore(); } }
+  g.save(); g.translate(x+o*r*.3,bt-o*r*.55); g.rotate(o*.35); g.scale(1-o*.2,1-o*.2);   // 盒蓋與蝴蝶結：打開時往旁邊掀開
+  const lg = g.createLinearGradient(-bw,0,bw,0); lg.addColorStop(0,mixHex(col,"#ffffff",.45)); lg.addColorStop(.55,lt); lg.addColorStop(1,col); g.fillStyle = lg; g.beginPath(); g.roundRect(-bw*1.08,-r*.3,bw*2.16,r*.3,r*.05); g.fill();
+  g.fillStyle = rib; g.fillRect(-r*.1,-r*.3,r*.2,r*.3); g.beginPath(); g.ellipse(-r*.2,-r*.4,r*.2,r*.12,-.5,0,7); g.ellipse(r*.2,-r*.4,r*.2,r*.12,.5,0,7); g.fill(); g.fillStyle = "#c79a3a"; g.beginPath(); g.arc(0,-r*.34,r*.07,0,7); g.fill();
+  g.restore();
+  if(rv > .01) txt("正確答案",x,bt-r*1.35,{size:r*.32,w:900,c:C.gold,stroke:"rgba(0,0,0,.7)",sw:6,a:rv});
+  g.restore(); }
 function Quiz(kind = "quiz"){
   Object.assign(G,{score:0,combo:0,maxCombo:0,hearts:3,showHearts:false});
   const cq = CUR && CUR.q || {}, grid = kind === "grid", song = kind === "song", RL = grid ? pick1(cq.rounds, gridRounds(cq), cq) : song ? [cq.songs && cq.songs.length ? cq.songs[Math.floor(Math.random()*cq.songs.length)] : listId(SONGLIST) ? {q:"請講出這首歌的歌名", list:true, title:""} : SONGS[Math.floor(Math.random()*SONGS.length)]] : pick1(cq.qs, QS, cq);   // 每題的內容：可由題庫指定，沒有就用占位內容
@@ -1379,27 +1401,6 @@ function Quiz(kind = "quiz"){
     if(p.state === "win"){ g.strokeStyle = C.green; g.lineWidth = 6; g.beginPath(); g.roundRect(x-sz,y-sz,sz*2,sz*2,sz*.14); g.stroke(); g.lineWidth = r*.12; g.lineCap = "round"; g.beginPath(); g.moveTo(x-r*.35,y+r*.02); g.lineTo(x-r*.1,y+r*.28); g.lineTo(x+r*.4,y-r*.3); g.strokeStyle = C.green; g.stroke(); }
     if(p.state === "name"){ const hh = sz*.42; g.save(); g.beginPath(); g.roundRect(x-sz,y-sz,sz*2,sz*2,sz*.14); g.clip(); g.fillStyle = "rgba(4,12,28,.8)"; g.fillRect(x-sz,y+sz-hh,sz*2,hh); g.restore();   // 每張圖下面的答案
       txt((q.names || [])[p.idx] || "", x, y+sz-hh/2, {size:Math.max(12,sz*.26), w:900, c:C.gold, maxW:sz*1.84}); g.strokeStyle = C.gold; g.lineWidth = 4; g.beginPath(); g.roundRect(x-sz,y-sz,sz*2,sz*2,sz*.14); g.stroke(); }
-    g.restore(); }
-  function giftPad(x,y,r,p){
-    const col = p.color, dk = mixHex(col,"#061326",.45), lt = mixHex(col,"#ffffff",.3), o = easeOut(clamp(p.open,0,1)), bw = r*.9, bt = y-r*.38, bb = y+r*.58, rib = "#f4d27a", rv = p.rv;
-    if(p.state === "empty") x += Math.sin(T*60)*r*.06*clamp(1.4-o*1.4,0,1);   // 選到空盒：盒子左右抖一下
-    g.save(); if(p.dim) g.globalAlpha = .3; if(rv > .01){ g.translate(x,y); g.scale(1+.14*rv,1+.14*rv); g.translate(-x,-y); }   // 揭曉的正確盒子放大
-    g.fillStyle = "rgba(2,8,22,.42)"; g.beginPath(); g.ellipse(x,y+r*.66,r*1.0,r*.2,0,0,7); g.fill();
-    if(rv > .01){ g.save(); g.globalAlpha = rv; g.strokeStyle = C.gold; g.lineWidth = 4; g.beginPath(); g.ellipse(x,y+r*.66,r*1.2,r*.28,0,0,7); g.stroke(); g.restore(); }
-    const gr = g.createLinearGradient(x-bw,0,x+bw,0); gr.addColorStop(0,lt); gr.addColorStop(.55,col); gr.addColorStop(1,dk); g.fillStyle = gr; g.beginPath(); g.roundRect(x-bw,bt,bw*2,bb-bt,r*.06); g.fill();
-    g.fillStyle = rib; g.fillRect(x-r*.1,bt,r*.2,bb-bt);
-    g.fillStyle = "#fbf3e0"; g.beginPath(); g.roundRect(x-r*.74,y-r*.02,r*1.48,r*.54,r*.05); g.fill();
-    let fs = Math.max(11,r*.22), ls = wrap(p.text,r*1.38,`900 ${fs}px ${CJK}`); while(ls.length > 2 && fs > 9){ fs *= .88; ls = wrap(p.text,r*1.38,`900 ${fs}px ${CJK}`); }
-    ls.forEach((l,i) => txt(l,x,y+r*.25+(i-(ls.length-1)/2)*fs*1.2,{size:fs,w:900,c:"#3a2418"}));
-    g.fillStyle = dk; g.beginPath(); g.arc(x-bw+r*.19,bt+r*.2,r*.15,0,7); g.fill(); txt("ABCD"[p.idx],x-bw+r*.19,bt+r*.2,{size:r*.19,f:DISP,w:900,c:"#fff"});
-    if(o > .03){   // 盒子裡的東西：答對與揭曉是星星，答錯是空的
-      if(p.state === "empty"){ g.globalAlpha *= o; g.fillStyle = "#8a97a8"; [[-.2,-.1,.14],[.15,-.35,.18],[-.05,-.6,.12]].forEach(([ox,oy,rr]) => { g.beginPath(); g.arc(x+ox*r,bt+oy*r,rr*r,0,7); g.fill(); }); txt("空的",x,bt-r*1.05,{size:r*.36,w:900,c:"#ff9a9a",stroke:"rgba(0,0,0,.7)",sw:6}); g.globalAlpha = p.dim ? .35 : 1; }
-      else { g.save(); g.translate(x,bt-o*r*.75); g.rotate(Math.sin(T*3)*.15); g.scale(o,o); g.shadowColor = C.gold; g.shadowBlur = p.state === "win" ? 22 : 8; g.fillStyle = p.state === "win" ? C.gold : "#e8d7a3"; g.beginPath(); for(let k=0;k<10;k++){ const a = -Math.PI/2+k*Math.PI/5, rr = k%2 ? r*.16 : r*.36; k ? g.lineTo(Math.cos(a)*rr,Math.sin(a)*rr) : g.moveTo(Math.cos(a)*rr,Math.sin(a)*rr); } g.closePath(); g.fill(); g.restore(); } }
-    g.save(); g.translate(x+o*r*.3,bt-o*r*.55); g.rotate(o*.35); g.scale(1-o*.2,1-o*.2);   // 盒蓋與蝴蝶結：打開時往旁邊掀開
-    const lg = g.createLinearGradient(-bw,0,bw,0); lg.addColorStop(0,mixHex(col,"#ffffff",.45)); lg.addColorStop(.55,lt); lg.addColorStop(1,col); g.fillStyle = lg; g.beginPath(); g.roundRect(-bw*1.08,-r*.3,bw*2.16,r*.3,r*.05); g.fill();
-    g.fillStyle = rib; g.fillRect(-r*.1,-r*.3,r*.2,r*.3); g.beginPath(); g.ellipse(-r*.2,-r*.4,r*.2,r*.12,-.5,0,7); g.ellipse(r*.2,-r*.4,r*.2,r*.12,.5,0,7); g.fill(); g.fillStyle = "#c79a3a"; g.beginPath(); g.arc(0,-r*.34,r*.07,0,7); g.fill();
-    g.restore();
-    if(rv > .01) txt("正確答案",x,bt-r*1.35,{size:r*.32,w:900,c:C.gold,stroke:"rgba(0,0,0,.7)",sw:6,a:rv});
     g.restore(); }
   function award(x,y,hold){ SFX.deliver(); burst(x,y,60,[C.red,C.gold,"#fff",C.green],10); ring(x,y,C.gold,20,500,.7,6);
     G.combo++; G.maxCombo = Math.max(G.maxCombo,G.combo); G.score++; kills++; got[qi] = true; floatT(x,y-30*u,"+1",C.gold,40*u+8,DISP); nextAt = T + hold; }
@@ -1841,13 +1842,13 @@ function OTPick(){
 const OT_TYPES = ["quiz","tf","sort","song","grid"];
 function otRound(q){   // 把各題型轉成搶答用的格式：q 題目、opts 題目下面的補充行、answer 答案卡的文字（song 播歌、grid 顯示九宮格）
   const one = L => L[Math.floor(Math.random()*L.length)];
-  if(q.type === "quiz"){ const r = pick1(q.qs, QS, q)[0]; return {q:r.q, opts:r.o.map((o,i) => `${"ABCD"[i]}. ${o}`), answer:`${"ABCD"[r.a]}　${r.o[r.a]}`}; }
+  if(q.type === "quiz"){ const r = pick1(q.qs, QS, q)[0]; return {q:r.q, opts:[], boxes:r.o, a:r.a, answer:`${"ABCD"[r.a]}　${r.o[r.a]}`, sub:`答案：${"ABCD"[r.a]}　${r.o[r.a]}`}; }
   if(q.type === "tf"){ const r = pick1(q.rounds, ROUND_DATA.tf, q)[0]; return {q:r.q, opts:["這句話是真的還是假的？"], answer:r.a ? "真" : "假"}; }
   if(q.type === "sort"){ const r = pick1(q.rounds, ROUND_DATA.sort, q)[0]; const idx = r.items.map((_,i) => i); let o; do{ o = shuf(idx); }while(idx.length > 1 && o.every((v,i) => v === i));   // 打亂到和正確順序不一樣，免得剛好排對漏出答案
-    return {q:r.q, opts:o.map(k => "・" + r.items[k]), answer:r.items.join(" → ")}; }   // 打亂的項目一行一個
+    const cards = o.map((k,i) => ({text:r.items[k], ord:k, i})); return {q:r.q, opts:[], cards, answer:r.items.join(" → "), sub:"正確順序：" + cards.slice().sort((a,b) => a.ord-b.ord).map(c => "ABCDE"[c.i]).join(" → ")}; }
   if(q.type === "song"){ const song = {...(q.songs && q.songs.length ? one(q.songs) : listId(SONGLIST) ? {q:"請講出這首歌的歌名", list:true, title:""} : one(SONGS))};
     return {q:"請講出這首歌的歌名", opts:[], song, get answer(){ return song.title || "（歌名讀取中）"; }}; }
-  if(q.type === "grid"){ const r = pick1(q.rounds, gridRounds(q), q)[0]; return {q:r.q, opts:[], grid:r, answer:r.mode === "name" ? "" : `${r.targets.length} 人`}; }
+  if(q.type === "grid"){ const r = pick1(q.rounds, gridRounds(q), q)[0]; return {q:r.q, opts:[], grid:r, answer:r.mode === "name" ? "" : `${r.targets.length} 人`, sub:r.mode === "name" ? "" : `答案：${r.targets.length} 人`}; }
   return {...pick1(q.rounds, BUZZ0, q)[0], opts:[]}; }
 function OTBuzz(entry){
   if(!OT.used.includes(entry.id)) OT.used.push(entry.id);
@@ -1859,7 +1860,7 @@ function OTBuzz(entry){
     layout(){ const cx = W/2, mw = Math.min(W-32-2*(48*u+30), 820); s.qy = insT + 120*u + 60;
       const bot = H - insB - (W < 700 ? 104 : 60), list = s.pads.filter(p => p !== playB && p !== jumpB && p !== backB), pr = clamp(Math.min((W-32)/(list.length*2.9+.2), 46*u+14), 22, 64);
       list.forEach((p,i) => { p.r = pr; p.x = cx + (i-(list.length-1)/2)*pr*2.9; p.y = bot - pr*.55; }); s.bnY = bot - pr*1.6 - 30;
-      const gap = q && (q.grid || q.song) ? Math.max(56, 60*u) : 30, room = (q && q.grid ? Math.min(H*.36, 320) : q && q.song ? 130 : Math.max(96,110*u)*.9) + gap;   // 題目下面要留給九宮格、猜歌或答案卡的高度
+      const big = q && (q.grid || q.song || q.boxes || q.cards), gap = big ? Math.max(56, 60*u) : 30, room = (!q ? 0 : q.grid ? Math.min(H*.36, 320) : q.boxes ? Math.min(H*.34, 260) : q.cards ? Math.min(H*.42, q.cards.length*56) : q.song ? 130 : Math.max(96,110*u)*.9) + gap;   // 題目下面要留給九宮格、猜歌或答案卡的高度
       let qs = Math.max(20, 30*u+4), os;
       for(;;){ os = Math.max(16, qs*.7); qLines = q ? wrap(q.q, mw, `900 ${qs}px ${CJK}`) : []; oLines = q ? q.opts.flatMap(o => wrap(o, mw, `700 ${os}px ${CJK}`)) : [];   // 題目太長就把字縮小，直到放得下
         if(s.qy + qLines.length*qs*1.35 + oLines.length*os*1.45 + room <= s.bnY || qs <= 18) break; qs *= .94; }
@@ -1886,13 +1887,13 @@ function OTBuzz(entry){
       if(q && phase !== "out"){ txt(`${entry.title}`, W/2, s.qy - s.qs*1.1, {size:Math.max(12,13*u+2), w:700, c:"#ffb0b0", ls:2});
         qLines.forEach((l,i) => txt(l, W/2, s.qy + i*s.qs*1.35, {size:s.qs, w:900, c:"#fff", stroke:"rgba(0,0,0,.7)", sw:7}));
         oLines.forEach((l,i) => txt(l, W/2, s.qy + (qLines.length - .3)*s.qs*1.35 + (i+.5)*s.os*1.45, {size:s.os, w:700, c:"#ffe3b0", stroke:"rgba(0,0,0,.7)", sw:5}));
-        if(q.grid) drawGrid();
+        if(q.grid) drawGrid(); if(q.boxes) drawBoxes(); if(q.cards) drawCards();
         if(q.song && !ansAt){ const my = (s.midTop + s.midBot)/2 - 20; txt("♪", W/2, my, {size:Math.max(40,64*u), w:900, c:C.gold, a:pl.playing ? .55 + pulse*.45 : .35, glow:pl.playing ? 18 : 0});
           txt(pl.err || (pl.playing ? "播放中" : "已暫停"), W/2, my + Math.max(36,46*u), {size:Math.max(13,15*u+2), w:700, c:pl.err ? "#ff9aa8" : "#ffd0d0", maxW:W-32}); } }
       if(phase === "ask" && !banner) txt("先舉手的隊伍，請主持人點選", W/2, s.bnY, {size:Math.max(15,18*u+2), w:700, c:"#ffd0d0", a:.6 + pulse*.4});
       if(banner){ txt(banner.text, W/2, s.bnY, {size:Math.max(22,32*u+6), w:900, c:banner.color, stroke:"rgba(0,0,0,.8)", sw:8, maxW:W-32});
         if(banner.sub) txt(banner.sub, W/2, s.bnY - Math.max(36,40*u), {size:Math.max(16,20*u+2), w:900, c:"#fff", stroke:"rgba(0,0,0,.8)", sw:6, maxW:W-32}); }
-      if(ansAt && !q.grid){ const k = easeOut(clamp((T-ansAt)/.35,0,1)), pw = Math.min(W-32,560), ph = Math.max(96,110*u), cy = q.song ? s.midTop + (s.midBot - s.midTop)*.38 : (s.midTop + s.midBot)/2, as = Math.max(26,40*u+6);   // 答案卡：答對、全部答錯或時間到才公布（答錯時不公布，其他隊還能搶）
+      if(ansAt && !q.grid && !q.boxes && !q.cards){ const k = easeOut(clamp((T-ansAt)/.35,0,1)), pw = Math.min(W-32,560), ph = Math.max(96,110*u), cy = q.song ? s.midTop + (s.midBot - s.midTop)*.38 : (s.midTop + s.midBot)/2, as = Math.max(26,40*u+6);   // 答案卡：答對、全部答錯或時間到才公布（答錯時不公布，其他隊還能搶）
         g.save(); g.globalAlpha = k; g.translate(W/2,cy); g.scale(.6+.4*k,.6+.4*k); g.fillStyle = "rgba(20,4,10,.88)"; g.strokeStyle = C.gold; g.lineWidth = 4; g.shadowColor = C.gold; g.shadowBlur = 24; g.beginPath(); g.roundRect(-pw/2,-ph/2,pw,ph,16); g.fill(); g.stroke(); g.restore();
         txt("答案", W/2, cy - ph*.26, {size:Math.max(13,14*u+2), w:700, c:"#ffd0d0", ls:4, a:k}); txt(q.answer, W/2, cy + ph*.12, {size:as, w:900, c:C.gold, maxW:pw-32, glow:16, a:k, sc:.6+.4*k}); }
       tm.draw(); } };
@@ -1902,7 +1903,15 @@ function OTBuzz(entry){
       if(!show) return;
       if(r.mode === "name"){ const hh = sz*.42; g.save(); g.beginPath(); g.roundRect(x-sz,y-sz,sz*2,sz*2,sz*.14); g.clip(); g.fillStyle = "rgba(4,12,28,.8)"; g.fillRect(x-sz,y+sz-hh,sz*2,hh); g.restore(); txt(r.names[i] || "", x, y+sz-hh/2, {size:Math.max(11,sz*.26), w:900, c:C.gold, maxW:sz*1.84}); }
       else if(hit){ g.save(); g.strokeStyle = C.green; g.lineWidth = 5; g.beginPath(); g.roundRect(x-sz,y-sz,sz*2,sz*2,sz*.14); g.stroke(); g.restore(); } }); }
-  function reveal(){ ansAt = T; if(q.grid && q.answer && banner) banner.sub = "答案：" + q.answer; }   // 九宮格數人數：答案人數寫在橫幅上方，不用答案卡蓋住照片
+  function drawBoxes(){ const top = s.midTop, bot = s.midBot, pt = W < H, cols = pt ? 2 : 4, rows = pt ? 2 : 1, r = Math.max(28, Math.min((W-32)/(cols*2.3), (bot-top)/(2.85 + (rows-1)*2.45), 100*u*1.1)), o = ansAt ? easeOut(clamp((T-ansAt)/.5,0,1)) : 0;   // 和一般答題一樣的四個禮物盒，只是不能點。盒子上方留 2.15 倍半徑，打開時的星星和「正確答案」才不會蓋到題目
+    q.boxes.forEach((t,i) => { const c = i%cols, rw = Math.floor(i/cols), hit = i === q.a;
+      giftPad(W/2 + (c-(cols-1)/2)*r*2.3, top + r*2.15 + rw*r*2.45, r, {color:[C.cyan,C.violet,C.gold,C.green][i], idx:i, text:t, open:ansAt && hit ? o : 0, rv:ansAt && hit ? o : 0, state:ansAt && hit ? "win" : "", dim:!!ansAt && !hit}); }); }
+  function drawCards(){ const n = q.cards.length, w = Math.min((W-32)*.8, 560), av = (s.midBot - s.midTop)/n, h = clamp(Math.min(av-8, av*.85), 16, 64), pitch = Math.max(h+3, Math.min(h+8, av)), shown = ansAt > 0;   // 和一般答題一樣的排序卡片：公布時排回正確順序
+    q.cards.forEach(c => { const ty = s.midTop + ((shown ? c.ord : c.i)+.5)*pitch; c.y = c.y == null ? ty : c.y + (ty - c.y)*.15; const x = W/2, y = c.y;
+      g.fillStyle = "#16324f"; g.strokeStyle = shown ? C.gold : C.cyan; g.lineWidth = 3; g.beginPath(); g.roundRect(x-w/2,y-h/2,w,h,Math.min(14,h*.25)); g.fill(); g.stroke();
+      g.fillStyle = shown ? C.gold : "#4aa3df"; g.beginPath(); g.arc(x-w/2+h*.5,y,h*.3,0,7); g.fill();
+      txt("ABCDE"[c.i],x-w/2+h*.5,y,{size:h*.34,f:DISP,w:900,c:"#06142a"}); txt(c.text,x+h*.3,y,{size:Math.max(11,h*.45),w:900,c:"#fff",maxW:w-h*2}); if(shown) txt(`第 ${c.ord+1}`,x+w/2-h*.55,y,{size:Math.max(12,h*.3),w:900,c:C.gold}); }); }
+  function reveal(){ ansAt = T; if(q.sub && banner) banner.sub = q.sub; }   // 九宮格、選擇題、排序：答案寫在橫幅上方，不用答案卡蓋住盒子、卡片或照片
   function ask(){ qi++; q = RL[qi]; phase = "ask"; who = -1; out = []; banner = null; ansAt = 0;
     teamB = ids.map((ti,k) => miniPad(S.teams[ti].name, TC[k % TC.length])); okB = miniPad("答對",C.green); noB = miniPad("答錯",C.coral); endB = miniPad("答題結束","#5b6b7c");
     if(q.song){ bossMusic(false); jumpB = iconPill("restart","換段落","#4aa3df"); playB = iconPill(() => pl.playing ? "pause" : "play", () => pl.playing ? "暫停" : "播放", "#4aa3df"); pl.load(q.song); }   // 猜歌時先關掉加賽配樂
